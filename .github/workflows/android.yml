@@ -127,11 +127,29 @@ jobs:
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon assembleDebug ${{ steps.bundle.outputs.args }}
+          set -o pipefail
+          ./gradlew --no-daemon --stacktrace assembleDebug ${{ steps.bundle.outputs.args }} 2>&1 | tee build-debug.log
 
       - name: Build (release, debug-signed)
         working-directory: android
-        run: ./gradlew --no-daemon assembleRelease ${{ steps.bundle.outputs.args }}
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon assembleRelease ${{ steps.bundle.outputs.args }} 2>&1 | tee build-release.log
+
+      # The build logs are behind a host that some sandboxes cannot reach, so the interesting lines are republished
+      # as check-run annotations (visible from the API and in the PR/files tab).
+      - name: Publish build errors as annotations
+        if: failure()
+        run: |
+          log=$(ls android/build-*.log 2>/dev/null | head -1)
+          if [ -z "$log" ]; then echo "No build log found"; exit 0; fi
+          grep -aE "^(e: |w: .*\.kt)|error:|CMake Error|Execution failed for task|What went wrong|Caused by:|Unresolved reference|^\.\.\. " "$log" \
+            | grep -av "warning:" | awk '!seen[$0]++' | head -25 | while IFS= read -r line; do
+              line=${line//'%'/'%25'}
+              line=${line//$'\n'/'%0A'}
+              line=${line//$'\r'/''}
+              echo "::error title=build::$line"
+            done
 
       - name: Collect APKs
         env:
