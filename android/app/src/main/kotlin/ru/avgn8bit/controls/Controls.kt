@@ -173,10 +173,13 @@ enum class ButtonScheme(@StringRes val labelRes: Int) {
     XBOX(R.string.preset_xbox),
     PC(R.string.preset_pc);
 
-    /** Names of the action buttons, in the order jump, shoot, item. */
+    /**
+     * Names of the action buttons, in the order jump, shoot, item. The symbols are the plain Unicode ones (a
+     * multiplication sign, not a "ballot X") so they render in every system font instead of a missing-glyph box.
+     */
     val actionLabels: List<String>
         get() = when (this) {
-            PLAYSTATION -> listOf("✕", "○", "□")
+            PLAYSTATION -> listOf("×", "○", "□")
             XBOX -> listOf("A", "B", "X")
             PC -> listOf("Z", "X", "C")
         }

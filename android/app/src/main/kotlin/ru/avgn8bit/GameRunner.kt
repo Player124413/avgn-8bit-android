@@ -403,6 +403,29 @@ class GameRunner(
     }
 
     private fun present(filter: VideoFilter) {
+        // The runtime keeps its own idea of the GL state and only touches the driver when the *game* asks for a
+        // change (glGpuSetBlendEnable returns at once when its flag already matches), so every piece of state this
+        // pass touches has to be handed back exactly as it was found. Leaving the blend disabled, for instance, made
+        // the next frame draw every sprite unblended: the transparent texels of a texture page are black, so each
+        // sprite came out inside a black rectangle.
+        val blendWas = GLES20.glIsEnabled(GLES20.GL_BLEND)
+        val scissorWas = GLES20.glIsEnabled(GLES20.GL_SCISSOR_TEST)
+        val previous = IntArray(4)
+        GLES20.glGetIntegerv(GLES20.GL_VIEWPORT, previous, 0)
+        val viewport = previous.copyOf()
+        GLES20.glGetIntegerv(GLES20.GL_CURRENT_PROGRAM, previous, 0)
+        val program = previous[0]
+        GLES30.glGetIntegerv(GLES30.GL_VERTEX_ARRAY_BINDING, previous, 0)
+        val vao = previous[0]
+        GLES20.glGetIntegerv(GLES20.GL_ACTIVE_TEXTURE, previous, 0)
+        val activeTexture = previous[0]
+        GLES20.glGetIntegerv(GLES20.GL_TEXTURE_BINDING_2D, previous, 0)
+        val texture = previous[0]
+        GLES20.glGetIntegerv(GLES20.GL_FRAMEBUFFER_BINDING, previous, 0)
+        val framebuffer = previous[0]
+        val clearColor = FloatArray(4)
+        GLES20.glGetFloatv(GLES20.GL_COLOR_CLEAR_VALUE, clearColor, 0)
+
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
         GLES20.glViewport(0, 0, egl.width, egl.height)
         GLES20.glDisable(GLES20.GL_BLEND)
@@ -423,6 +446,16 @@ class GameRunner(
             shaders.drawBlit(frameTexture)
         }
         egl.swapBuffers()
+
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, framebuffer)
+        GLES20.glViewport(viewport[0], viewport[1], viewport[2], viewport[3])
+        GLES20.glUseProgram(program)
+        GLES30.glBindVertexArray(vao)
+        GLES20.glActiveTexture(activeTexture)
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture)
+        GLES20.glClearColor(clearColor[0], clearColor[1], clearColor[2], clearColor[3])
+        if (blendWas) GLES20.glEnable(GLES20.GL_BLEND) else GLES20.glDisable(GLES20.GL_BLEND)
+        if (scissorWas) GLES20.glEnable(GLES20.GL_SCISSOR_TEST) else GLES20.glDisable(GLES20.GL_SCISSOR_TEST)
     }
 
     /**

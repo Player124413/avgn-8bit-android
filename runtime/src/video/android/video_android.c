@@ -38,7 +38,12 @@ static const char* videoVertexShader =
     "uniform mat4 uSTMatrix;\n"
     "varying vec2 vTexCoord;\n"
     "void main() {\n"
-    "    vTexCoord = (uSTMatrix * vec4(aTexCoord, 0.0, 1.0)).xy;\n"
+    "    vec2 uv = (uSTMatrix * vec4(aTexCoord, 0.0, 1.0)).xy;\n"
+    // Rendering into a game surface is the one place the y axis has to be turned around: the runtime renders its
+    // surfaces in GML coordinates (y down, so row 0 of a surface is its top), while clip space here has y up. The
+    // quad below would otherwise put the first decoded row at the bottom of the surface and hand draw_surface an
+    // upside-down cutscene.
+    "    vTexCoord = vec2(uv.x, 1.0 - uv.y);\n"
     "    gl_Position = vec4(aPosition, 0.0, 1.0);\n"
     "}\n";
 
@@ -56,8 +61,8 @@ static const char* videoFragmentShader =
     "}\n";
 
 // Two triangles covering the whole surface. The uv of a corner is its position scaled into 0..1, so uv (0,0) is the
-// top-left texel of the frame: the video surface, like every surface the runtime renders into, keeps the game's y-down
-// orientation in its texture (v = 0 is the top row, which is what draw_surface assumes when it samples it).
+// first texel of the frame; the vertex shader flips v because clip space has y up while the game's surfaces have row 0
+// at the top (v = 0 is the top row, which is what draw_surface assumes when it samples a surface).
 static const float videoQuad[] = {
     // x,     y,     u,    v
     -1.0f, -1.0f, 0.0f, 0.0f,
@@ -574,6 +579,7 @@ static void androidVideoDraw(VideoDecoder* decoder, Runner* runner, int32_t surf
     GLint prevViewport[4];
     GLboolean prevScissor = glIsEnabled(GL_SCISSOR_TEST);
     GLboolean prevDepth = glIsEnabled(GL_DEPTH_TEST);
+    GLboolean prevBlend = glIsEnabled(GL_BLEND);
     GLboolean prevColorMask[4];
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFbo);
     glGetIntegerv(GL_CURRENT_PROGRAM, &prevProgram);
@@ -612,7 +618,9 @@ static void androidVideoDraw(VideoDecoder* decoder, Runner* runner, int32_t surf
     glColorMask(prevColorMask[0], prevColorMask[1], prevColorMask[2], prevColorMask[3]);
     if (prevDepth) glEnable(GL_DEPTH_TEST);
     if (prevScissor) glEnable(GL_SCISSOR_TEST);
-    if (gl->blendEnable) glEnable(GL_BLEND); else glDisable(GL_BLEND);
+    // The state as it was found, not as the renderer remembers it: the renderer only re-sends a change when the game
+    // asks for one, so a flag it believes but the driver disagrees with would stay wrong for the rest of the session.
+    if (prevBlend) glEnable(GL_BLEND); else glDisable(GL_BLEND);
     glActiveTexture((GLenum) prevActive);
 }
 

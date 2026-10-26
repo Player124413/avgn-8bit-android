@@ -3560,6 +3560,17 @@ static void glBeginFrame(Renderer* renderer, int32_t gameW, int32_t gameH, int32
     glDisable(GL_SCISSOR_TEST);
     glClearDepthBuffer(renderer, 1.0f);
     if (scissor) glEnable(GL_SCISSOR_TEST);
+
+#if defined(__ANDROID__)
+    // The platform host draws the application surface to the window between two frames (GameRunner.present), and it
+    // is not the only code that can touch the driver behind this renderer's back. The state below is cached here and
+    // only re-sent when the game asks for a change, so a leak would stay for the rest of the session: with blending
+    // left off, every sprite draws its transparent texels (black in the page) over the background. One query per
+    // frame puts the cache back in charge.
+    if ((glIsEnabled(GL_BLEND) == GL_TRUE) != gl->blendEnable) {
+        if (gl->blendEnable) glEnable(GL_BLEND); else glDisable(GL_BLEND);
+    }
+#endif
 }
 
 static void glBeginView(Renderer* renderer, MAYBE_UNUSED int32_t viewX, MAYBE_UNUSED int32_t viewY, MAYBE_UNUSED int32_t viewW, MAYBE_UNUSED int32_t viewH, int32_t portX, int32_t portY, int32_t portW, int32_t portH, MAYBE_UNUSED float viewAngle) {

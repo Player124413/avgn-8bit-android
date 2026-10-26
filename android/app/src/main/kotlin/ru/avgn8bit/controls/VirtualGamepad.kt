@@ -169,27 +169,38 @@ fun ControlOverlay(
             }
         }
 
+        // Labels are drawn in a wide, free-standing box next to the element instead of inside it: the old box was a
+        // square of the button's size, which cut longer names ("Esc", "Start", a triangle) in half, and the middle of
+        // the button is where the finger presses and where the arrows of a D-Pad are.
+        val labelSizeSp = (shorter * 0.042f).coerceAtLeast(11f)
+        val labelHeightPx = labelSizeSp * density.density
+        val labelWidthPx = labelHeightPx * 5f
         for (element in layout.elements) {
             if (element.label.isEmpty()) continue
             val radius = (element.size * scaleMultiplier * shorter / 2f).coerceAtLeast(16f)
             val alpha = (element.opacity * opacityMultiplier).coerceIn(0.15f, 1f)
-            val side = radius * 2f / density.density
+            val centerX = element.x * widthPx
+            val centerY = element.y * heightPx
+            // Above the element, or below it when the element sits too close to the top edge for the text to fit.
+            val above = centerY - radius - labelHeightPx >= 0f
+            val top = if (above) centerY - radius - labelHeightPx else centerY + radius + labelHeightPx * 0.25f
             Box(
                 modifier = Modifier
                     .offset {
                         IntOffset(
-                            (element.x * widthPx - radius).roundToInt(),
-                            (element.y * heightPx - radius).roundToInt()
+                            (centerX - labelWidthPx / 2f).roundToInt(),
+                            top.roundToInt()
                         )
                     }
-                    .size(with(density) { side.toDp() })
-                    .wrapContentSize(Alignment.Center)
+                    .size(with(density) { labelWidthPx.toDp() }, with(density) { labelHeightPx.toDp() })
+                    .wrapContentSize(Alignment.Center, unbounded = true)
             ) {
                 Text(
                     text = element.label,
-                    color = BASE.copy(alpha = (alpha + 0.35f).coerceAtMost(1f)),
-                    fontSize = (radius * 0.62f / density.density).sp,
-                    fontWeight = FontWeight.Bold
+                    color = BASE.copy(alpha = (alpha + 0.4f).coerceAtMost(1f)),
+                    fontSize = labelSizeSp.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
                 )
             }
         }

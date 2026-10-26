@@ -18,6 +18,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -580,6 +582,7 @@ private fun MenuRow(text: String, onClick: () -> Unit, danger: Boolean = false) 
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun QuickSettingsDialog(settings: AppSettings, onDismiss: () -> Unit) {
     AlertDialog(
@@ -588,23 +591,24 @@ fun QuickSettingsDialog(settings: AppSettings, onDismiss: () -> Unit) {
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(str(R.string.settings_filter), color = Color(0xFFB0B0B8), fontSize = 12.sp)
-                Row {
+                FlowRow {
                     FilterChip(
                         selected = settings.filter == VideoFilter.SHARP,
                         onClick = { settings.filter = VideoFilter.SHARP },
                         label = { Text(str(R.string.filter_sharp)) },
-                        modifier = Modifier.padding(end = 6.dp)
+                        modifier = Modifier.padding(end = 6.dp, bottom = 4.dp)
                     )
                     FilterChip(
                         selected = settings.filter == VideoFilter.SMOOTH,
                         onClick = { settings.filter = VideoFilter.SMOOTH },
                         label = { Text(str(R.string.filter_smooth)) },
-                        modifier = Modifier.padding(end = 6.dp)
+                        modifier = Modifier.padding(end = 6.dp, bottom = 4.dp)
                     )
                     FilterChip(
                         selected = settings.filter == VideoFilter.CRT,
                         onClick = { settings.filter = VideoFilter.CRT },
-                        label = { Text(str(R.string.filter_crt)) }
+                        label = { Text(str(R.string.filter_crt)) },
+                        modifier = Modifier.padding(bottom = 4.dp)
                     )
                 }
                 Spacer(Modifier.height(8.dp))

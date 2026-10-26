@@ -2,6 +2,8 @@ package ru.avgn8bit.screens
 
 import android.content.Intent
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -37,6 +39,7 @@ import ru.avgn8bit.R
 import ru.avgn8bit.ui.AvgnPanel
 import ru.avgn8bit.ui.str
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     settings: AppSettings,
@@ -64,23 +67,26 @@ fun SettingsScreen(
 
         Section(str(R.string.settings_section_graphics)) {
             Text(str(R.string.settings_filter), color = Color(0xFFB0B0B8), fontSize = 12.sp)
-            Row {
+            // Wrapping, not a Row: with longer words (Russian, larger fonts) a Row pushes the last chips off the
+            // screen and their names are simply not there any more.
+            FlowRow {
                 FilterChip(
                     selected = settings.filter == VideoFilter.SHARP,
                     onClick = { settings.filter = VideoFilter.SHARP },
                     label = { Text(str(R.string.filter_sharp)) },
-                    modifier = Modifier.padding(end = 6.dp)
+                    modifier = Modifier.padding(end = 6.dp, bottom = 4.dp)
                 )
                 FilterChip(
                     selected = settings.filter == VideoFilter.SMOOTH,
                     onClick = { settings.filter = VideoFilter.SMOOTH },
                     label = { Text(str(R.string.filter_smooth)) },
-                    modifier = Modifier.padding(end = 6.dp)
+                    modifier = Modifier.padding(end = 6.dp, bottom = 4.dp)
                 )
                 FilterChip(
                     selected = settings.filter == VideoFilter.CRT,
                     onClick = { settings.filter = VideoFilter.CRT },
-                    label = { Text(str(R.string.filter_crt)) }
+                    label = { Text(str(R.string.filter_crt)) },
+                    modifier = Modifier.padding(bottom = 4.dp)
                 )
             }
             Spacer(Modifier.height(4.dp))
@@ -122,13 +128,13 @@ fun SettingsScreen(
 
         Section(str(R.string.settings_section_screen)) {
             Text(str(R.string.settings_orientation), color = Color(0xFFB0B0B8), fontSize = 12.sp)
-            Row(Modifier.fillMaxWidth()) {
+            FlowRow(Modifier.fillMaxWidth()) {
                 OrientationMode.entries.forEach { mode ->
                     FilterChip(
                         selected = settings.orientation == mode,
                         onClick = { settings.orientation = mode },
                         label = { Text(str(mode.labelRes), fontSize = 11.sp) },
-                        modifier = Modifier.padding(end = 6.dp)
+                        modifier = Modifier.padding(end = 6.dp, bottom = 4.dp)
                     )
                 }
             }
