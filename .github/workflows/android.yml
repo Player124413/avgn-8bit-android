@@ -1,0 +1,309 @@
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android/**"
+      - "runtime/**"
+      - ".github/workflows/android.yml"
+  pull_request:
+    paths:
+      - "android/**"
+      - "runtime/**"
+      - ".github/workflows/android.yml"
+  workflow_dispatch:
+    inputs:
+      game_zip_url:
+        description: >-
+          Прямая ссылка на zip с файлами игры (data.win + шрифты + Lang/Attract/Cutscenes).
+          Оставьте пустым, чтобы собрать обычный APK без игры.
+        required: false
+        type: string
+      include_videos:
+        description: "Включить катсцены в APK (сильно увеличивает размер)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  GAME_ZIP_URL: ${{ github.event.inputs.game_zip_url }}
+  INCLUDE_VIDEOS: ${{ github.event.inputs.include_videos }}
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      # The runner image ships the Android SDK, but not always the exact NDK/CMake/platform the project pins, and
+      # occasionally no SDK at all. Both cases are handled here without third-party setup actions.
+      - name: Android SDK, NDK and CMake
+        run: |
+          set -uo pipefail
+
+          annotate() {
+            tail -n 15 "$1" 2>/dev/null | while IFS= read -r line; do
+              line=${line//'%'/'%25'}
+              echo "::error title=$2::${line}"
+            done
+          }
+
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          if [ -z "$SDK" ] || [ ! -d "$SDK" ]; then SDK="$HOME/android-sdk"; fi
+          mkdir -p "$SDK/cmdline-tools"
+
+          if [ ! -x "$SDK/cmdline-tools/latest/bin/sdkmanager" ]; then
+            echo "cmdline-tools not found in $SDK, downloading them"
+            if ! curl -fsSL --retry 3 -o /tmp/cmdline-tools.zip \
+                https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip 2>/tmp/curl.log; then
+              annotate /tmp/curl.log "cmdline-tools download"
+              exit 1
+            fi
+            rm -rf "$SDK/cmdline-tools/latest" "$SDK/cmdline-tools/cmdline-tools"
+            unzip -q /tmp/cmdline-tools.zip -d "$SDK/cmdline-tools"
+            mv "$SDK/cmdline-tools/cmdline-tools" "$SDK/cmdline-tools/latest"
+          fi
+
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "$SDK/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$SDK/platform-tools" >> "$GITHUB_PATH"
+          export PATH="$SDK/cmdline-tools/latest/bin:$PATH"
+
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+
+          attempt=1
+          while :; do
+            if sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0" \
+                 "ndk;27.0.12077973" "cmake;3.22.1" > /tmp/sdk-install.log 2>&1; then
+              break
+            fi
+            if [ "$attempt" -ge 3 ]; then
+              annotate /tmp/sdk-install.log "sdkmanager"
+              exit 1
+            fi
+            echo "sdkmanager attempt $attempt failed, retrying"
+            attempt=$((attempt + 1))
+            sleep 15
+          done
+
+          echo "SDK: $SDK"
+          sdkmanager --list_installed 2>/dev/null | sed -n '1,30p'
+
+      - name: Cache NDK and CMake
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/local/lib/android/sdk/ndk/27.0.12077973
+            /usr/local/lib/android/sdk/cmake/3.22.1
+          key: sdk-ndk-27.0.12077973-cmake-3.22.1
+
+      - name: Cache native build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            android/app/.cxx
+          key: native-${{ runner.os }}-${{ hashFiles('android/native/CMakeLists.txt', 'runtime/**/*.c', 'runtime/**/*.h') }}
+          restore-keys: |
+            native-${{ runner.os }}-
+
+      # The game archive is never committed to the repository: it is downloaded here, used for this build only and
+      # thrown away with the runner. See android/README.md for how to host it.
+      - name: Download the game archive
+        if: env.GAME_ZIP_URL != ''
+        run: |
+          curl -L --fail --retry 3 --retry-delay 5 -o game.zip "$GAME_ZIP_URL"
+          ls -lh game.zip
+          echo "--- contents (first 25 entries) ---"
+          unzip -l game.zip | head -30 || true
+
+      - name: Prepare bundled game
+        id: bundle
+        run: |
+          # Three ways to bring the game in: the workflow input (downloaded above), a zip committed to the checkout
+          # (only makes sense in a private fork, see android/README.md), or nothing at all.
+          zip=""
+          if [ -f game.zip ]; then
+            zip="$PWD/game.zip"
+          elif [ -f android/game.zip ]; then
+            zip="$PWD/android/game.zip"
+          fi
+          args=""
+          if [ -n "$zip" ]; then
+            args="-PbundleGame=$zip"
+            if [ "$INCLUDE_VIDEOS" = "true" ]; then
+              args="$args -PbundleVideos=true"
+            fi
+            echo "bundled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "bundled=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "args=$args" >> "$GITHUB_OUTPUT"
+          echo "Bundle args: $args"
+
+      - name: Build (debug)
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          set -o pipefail
+          ./gradlew --no-daemon --stacktrace assembleDebug ${{ steps.bundle.outputs.args }} 2>&1 | tee build-debug.log
+
+      - name: Collect the APK
+        env:
+          BUNDLED: ${{ steps.bundle.outputs.bundled }}
+          VIDEOS: ${{ env.INCLUDE_VIDEOS }}
+        run: |
+          mkdir -p artifacts
+          suffix=""
+          if [ "$BUNDLED" = "true" ]; then
+            suffix="-bundled"
+            if [ "$VIDEOS" = "true" ]; then suffix="-bundled-videos"; fi
+          fi
+          cp android/app/build/outputs/apk/debug/app-debug.apk "artifacts/AVGN8bit-debug${suffix}.apk"
+          ls -lh artifacts
+          du -sh artifacts
+
+      # Cheap guard against packaging regressions (a stripped-out .so or a missing patch asset would only show up
+      # as a crash on the device otherwise).
+      - name: Sanity-check the APK
+        env:
+          BUNDLED: ${{ steps.bundle.outputs.bundled }}
+        run: |
+          set -e
+          # An update installs over the previous build only when the signing key matches and the versionCode does not
+          # go backwards; both are one-off mistakes that only show up on a phone, so check them here.
+          apksigner="$ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner"
+          badging="$ANDROID_SDK_ROOT/build-tools/35.0.0/aapt2"
+          for apk in artifacts/*.apk; do
+            "$apksigner" verify --print-certs "$apk" | awk -v apk="$apk" '/SHA-256 digest/ {print "  " apk " signed by " $NF}'
+            "$badging" dump badging "$apk" 2>/dev/null | head -1 || true
+          done
+
+          for apk in artifacts/*.apk; do
+            echo "== $apk ($(du -h "$apk" | cut -f1))"
+            unzip -l "$apk" > /tmp/list.txt
+            grep -E "assets/(data_vita\.patch|shaders/)" /tmp/list.txt
+            for abi in arm64-v8a armeabi-v7a; do
+              grep -q "lib/$abi/libavgn8bit.so" /tmp/list.txt || { echo "::error::$apk has no lib/$abi/libavgn8bit.so"; exit 1; }
+            done
+            grep -q "assets/data_vita.patch" /tmp/list.txt || { echo "::error::$apk has no assets/data_vita.patch"; exit 1; }
+            if [ "${BUNDLED:-false}" = "true" ]; then
+              grep -q "assets/game/" /tmp/list.txt || { echo "::error::$apk should contain the bundled game"; exit 1; }
+              grep -c "assets/game/" /tmp/list.txt | sed 's/^/bundled game entries: /'
+            fi
+          done
+
+      # The only place a build is published: the artifacts of its own run. Nothing is attached to a GitHub release,
+      # so every download is an explicit choice of a specific run (and an old link can never hand out a stale APK).
+      - name: Upload the APK as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AVGN8bit-apk
+          path: artifacts/*.apk
+          if-no-files-found: error
+          retention-days: 90
+
+      # The Actions log storage is unreachable from some environments, so on failure we build one compact report
+      # (interesting lines + the tail of every Gradle log), post it as a PR comment and push it to the ci-logs
+      # branch, where it can be read with the plain git-data API.
+      - name: Build failure report
+        if: failure()
+        run: |
+          set +e
+          report=/tmp/build-report.txt
+          {
+            echo "run: ${{ github.run_id }}"
+            echo "commit: ${{ github.sha }}"
+            echo "event: ${{ github.event_name }}"
+            echo
+            for log in $(ls android/build-*.log 2>/dev/null); do
+              echo "===== $log ====="
+              echo "--- errors ---"
+              grep -aE "^(e: |w: .*\.kt)|error:|CMake Error|FAILURE:|Execution failed for task|What went wrong|Caused by:|Unresolved reference|^\.\.\. " "$log" \
+                | grep -av "warning:" | awk '!seen[$0]++' | head -200
+              echo "--- last 150 lines ---"
+              tail -150 "$log"
+              echo
+            done
+          } > "$report" 2>&1
+          wc -c "$report"
+          exit 0
+
+      - name: Publish build errors as annotations
+        if: failure()
+        run: |
+          set +e
+          [ -f /tmp/build-report.txt ] || exit 0
+          awk '/^--- errors ---/{on=1;next} /^--- last/{on=0} on && NF' /tmp/build-report.txt \
+            | awk '!seen[$0]++' | head -8 | while IFS= read -r line; do
+              line=${line//'%'/'%25'}
+              line=${line//$'\n'/'%0A'}
+              line=${line//$'\r'/''}
+              echo "::error title=build::$line"
+            done
+          exit 0
+
+      - name: Post the build log to the pull request
+        if: failure() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          [ -f /tmp/build-report.txt ] || { echo "no report"; exit 0; }
+          {
+            echo "### Сборка не прошла"
+            echo ""
+            echo '```text'
+            head -c 52000 /tmp/build-report.txt
+            echo ""
+            echo '```'
+          } > /tmp/comment.md
+          gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/comment.md || true
+          exit 0
+
+      - name: Publish the build log to a branch
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          [ -f /tmp/build-report.txt ] || { echo "no report"; exit 0; }
+          mkdir -p .ci-logs
+          cp /tmp/build-report.txt ".ci-logs/build-${{ github.run_id }}.txt"
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@users.noreply.github.com"
+          git checkout -B ci-logs
+          git add -f .ci-logs
+          git commit -m "CI log for run ${{ github.run_id }}" || true
+          git push -f origin ci-logs || true
+          exit 0
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            android/build-*.log
+            android/**/build/outputs/logs/**
+            android/**/.cxx/**/*.log
+          if-no-files-found: ignore
+          retention-days: 7
