@@ -712,10 +712,10 @@ static bool performGameChange(const char* workingDirectory, char* launchParamete
 
 JNIEXPORT jint JNICALL JNI_FN(stepAndDraw)(MAYBE_UNUSED JNIEnv* env, MAYBE_UNUSED jclass cls, jint winW, jint winH, jfloat deltaTime) {
     Runner* runner = gRunner;
-    runner->deltaTime = deltaTime * 1000000;
-
     if (runner == nullptr)
         return BUTTERSCOTCH_DROID_SHOULD_EXIT;
+
+    runner->deltaTime = deltaTime * 1000000;
 
     if (runner->shouldExit)
         return BUTTERSCOTCH_DROID_SHOULD_EXIT;
@@ -859,7 +859,9 @@ JNIEXPORT void JNICALL JNI_FN(setActiveLogFile)(JNIEnv* env, MAYBE_UNUSED jclass
         (*env)->ReleaseStringUTFChars(env, jLogPath, logPath);
         return;
     } else {
-        fclose(gLog);
-        gLog = nullptr;
+        if (gLog != nullptr) {
+            fclose(gLog);
+            gLog = nullptr;
+        }
     }
 }
