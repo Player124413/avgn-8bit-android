@@ -20,6 +20,26 @@
 #include "log.h"
 
 #define LOG_TAG "Butterscotch"
+
+// ===[ Port profiling symbols ]===
+// The Vita host measured per-frame GL work with these counters and printed a PERF line from its watchdog
+// thread; gl_renderer.c instruments every draw/clear/FBO bind unconditionally, so the definitions have to
+// exist on every platform. On Android the counters are simply not reported anywhere yet.
+volatile const char* bsPhase = "boot";
+volatile const char* bsDetail = "";
+uint32_t bsGlDraws = 0;
+uint32_t bsGlFbo = 0;
+uint32_t bsGlProg = 0;
+uint32_t bsGlClears = 0;
+uint32_t bsGlTex = 0;
+uint32_t bsGlRead = 0;
+
+void bsTrackBind(uint32_t fbo) {
+    (void) fbo;
+}
+
+void bsTrackWork(void) {
+}
 // ===[ Runner state ]===
 
 static Runner* gRunner = nullptr;
