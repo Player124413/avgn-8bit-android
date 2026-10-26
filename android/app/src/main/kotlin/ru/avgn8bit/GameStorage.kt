@@ -34,11 +34,14 @@ object GameStorage {
     fun dataDir(context: Context): File = File(context.filesDir, DIR_DATA).apply { mkdirs() }
     fun savesDir(context: Context): File = File(context.filesDir, DIR_SAVES).apply { mkdirs() }
 
+    /** The folder with the two logs, opened from the "Логи" menu. */
+    fun logsDir(context: Context): File = File(context.filesDir, "logs").apply { mkdirs() }
+
     /** What the app itself logs. */
-    fun logFile(context: Context): File = File(File(context.filesDir, "logs"), "app.log")
+    fun logFile(context: Context): File = File(logsDir(context), "app.log")
 
     /** What the runtime logs (the game's own print() output and engine warnings). */
-    fun nativeLogFile(context: Context): File = File(File(context.filesDir, "logs"), "native.log")
+    fun nativeLogFile(context: Context): File = File(logsDir(context), "native.log")
 
     /** The retail data.win the user copied in; this is also what the patch is applied to. */
     fun rawDataWin(context: Context): File? =

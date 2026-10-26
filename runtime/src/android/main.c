@@ -875,7 +875,12 @@ JNIEXPORT void JNICALL JNI_FN(setActiveLogFile)(JNIEnv* env, MAYBE_UNUSED jclass
         }
 
         gLog = fopen(logPath, "w");
-        setbuf(gLog, nullptr);
+        if (gLog == nullptr) {
+            logWarn("Could not open the log file %s: %s", logPath, strerror(errno));
+        } else {
+            // Unbuffered: a crash must not eat the last lines, they are the interesting ones.
+            setbuf(gLog, nullptr);
+        }
         (*env)->ReleaseStringUTFChars(env, jLogPath, logPath);
         return;
     } else {
