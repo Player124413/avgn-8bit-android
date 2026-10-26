@@ -30,6 +30,14 @@ import ru.avgn8bit.ui.str
 @Composable
 fun CreditsDialog(onDismiss: () -> Unit) {
     val uriHandler = LocalUriHandler.current
+    // A phone without a browser, or a system that refuses the intent, must not crash the launcher.
+    fun open(url: String) {
+        try {
+            uriHandler.openUri(url)
+        } catch (_: Throwable) {
+            // Nothing to open it with: the address is still on screen and can be typed by hand.
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -42,13 +50,13 @@ fun CreditsDialog(onDismiss: () -> Unit) {
                 Body(str(R.string.credits_intro))
                 Spacer(Modifier.height(8.dp))
                 LinkButton("github.com/conop-8888/avgn-8bit-vita") {
-                    uriHandler.openUri("https://github.com/conop-8888/avgn-8bit-vita")
+                    open("https://github.com/conop-8888/avgn-8bit-vita")
                 }
                 Spacer(Modifier.height(16.dp))
                 Body(str(R.string.credits_channel))
                 Spacer(Modifier.height(8.dp))
                 LinkButton("t.me/player1444ports") {
-                    uriHandler.openUri("https://t.me/player1444ports")
+                    open("https://t.me/player1444ports")
                 }
                 Spacer(Modifier.height(16.dp))
                 Text(str(R.string.credits_footer), color = Color(0xFF9E9EA7), fontSize = 12.sp, lineHeight = 17.sp)
