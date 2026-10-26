@@ -99,7 +99,9 @@ object GameDataPatcher {
                 RandomAccessFile(source, "r").use { input ->
                     BufferedOutputStream(FileOutputStream(partial), 1 shl 20).use { out ->
                         val inflater = Inflater()
-                        val ops = DataInputStream(InflatingStream(raw, inflater))
+                        val ops = DataInputStream(
+                            InflatingStream(raw, inflater, context.getString(R.string.patch_needs_dictionary))
+                        )
 
                         fun emitLiteral(literal: ByteArray) {
                             if (written + literal.size > outputSize) {
@@ -205,7 +207,9 @@ object GameDataPatcher {
  */
 private class InflatingStream(
     private val source: InputStream,
-    private val inflater: Inflater
+    private val inflater: Inflater,
+    /** Shown when the stream asks for a preset dictionary: only a damaged patch does that. */
+    private val dictionaryMessage: String
 ) : InputStream() {
     private val inputBuffer = ByteArray(1 shl 16)
 
@@ -220,7 +224,7 @@ private class InflatingStream(
             val n = inflater.inflate(b, off, len)
             if (n > 0) return n
             if (inflater.finished()) return -1
-            if (inflater.needsDictionary()) throw IllegalStateException(context.getString(R.string.patch_needs_dictionary))
+            if (inflater.needsDictionary()) throw IllegalStateException(dictionaryMessage)
             if (inflater.needsInput()) {
                 val got = source.read(inputBuffer)
                 if (got <= 0) return -1
