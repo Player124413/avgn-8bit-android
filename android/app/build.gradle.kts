@@ -88,6 +88,11 @@ android {
 
     lint {
         abortOnError = false
+        // The release build reads the generated assets folder (see bundleGame at the bottom of this file); the vital
+        // lint check inspects that folder without depending on the task that fills it, which Gradle 8 rejects as an
+        // implicit dependency. Lint is not a gate here, so the release check is off and the ordering rule below
+        // keeps `./gradlew lint` working.
+        checkReleaseBuilds = false
     }
 }
 
@@ -239,4 +244,11 @@ val bundleGame by tasks.registering {
 // The asset merge must run after the files are in place.
 tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }.configureEach {
     dependsOn(bundleGame)
+}
+
+// Lint (and anything else that reads the generated assets) must run after bundleGame has filled the folder.
+tasks.configureEach {
+    if (name.contains("lint", ignoreCase = true) || name.contains("LintVital")) {
+        mustRunAfter(bundleGame)
+    }
 }
