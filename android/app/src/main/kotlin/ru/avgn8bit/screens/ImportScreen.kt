@@ -122,10 +122,13 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
                             scope.launch {
                                 try {
                                     val written = withContext(Dispatchers.IO) {
-                                        BundledGame.install(context) { name, fraction ->
-                                            progress = fraction
-                                            progressText = name
-                                        }
+                                        BundledGame.install(
+                                            context,
+                                            onProgress = { name, fraction ->
+                                                progress = fraction
+                                                progressText = name
+                                            }
+                                        )
                                     }
                                     progressText = "Собираю data_vita.win…"
                                     val patch = withContext(Dispatchers.IO) {

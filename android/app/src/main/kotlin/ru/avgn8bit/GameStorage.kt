@@ -14,7 +14,7 @@ import java.util.zip.ZipInputStream
  *
  * Layout (all inside the app's private storage, so no storage permission is needed):
  *   files/avgn/data.win        the game
- *   files/avgn/*.ttf           the fonts the game loads with font_add()
+ *   files/avgn/  (the .ttf fonts)  what the game loads with font_add()
  *   files/avgn/Lang, Attract  texts and the attract-mode screens
  *   files/avgn/Cutscenes       videos (optional, they are the big part of the install)
  *   files/saves                saves, options, log.txt

@@ -412,9 +412,17 @@ class GameActivity : ComponentActivity(), ControlSink {
 
     // ===[ ControlSink ]===
 
-    override fun key(vk: Int, down: Boolean) = runner?.key(vk, down) ?: Unit
-    override fun pad(button: Int, down: Boolean) = runner?.padButton(button, down) ?: Unit
-    override fun axis(axis: Int, value: Float) = runner?.padAxis(axis, value) ?: Unit
+    override fun key(vk: Int, down: Boolean) {
+        runner?.key(vk, down)
+    }
+
+    override fun pad(button: Int, down: Boolean) {
+        runner?.padButton(button, down)
+    }
+
+    override fun axis(axis: Int, value: Float) {
+        runner?.padAxis(axis, value)
+    }
 
     // ===[ Physical keyboards and controllers ]===
 
