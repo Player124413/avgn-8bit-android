@@ -3,8 +3,10 @@ You need: A copy of your own game, a Windows PC, and a hacked Vita with VitaShel
 
 On your PC (once)
 
-Drop AVGN8bit-Vita-Patcher.bat into your Windows Steam AVGN game folder.
-Double-click it. If Windows gives you a warning, hit → Run anyway.
+Extract the AVGN8bit zip file.
+
+Drop AVGN8bit-Vita-Patcher.bat into your own Windows Steam AVGN game folder.
+Double-click the .bat file. If Windows gives you a warning, hit → Run anyway.
 Windows will open a shell script. The script will create a Vita-friendly game folder. Wait a while...If you don't have ffmpeg installed on your computer, the script will have to download ffmpeg to convert the cut scenes to a Vita friendly format. Don’t click in the window, just wait.. For me, it took about 30 minutes (I know)... When it’s finsihed, there will be a new folder called "AVGN8bit" in your game folder. The rest of your game files stay untouched.
 
 On your Vita
