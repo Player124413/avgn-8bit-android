@@ -108,6 +108,9 @@ target_compile_definitions(avgn8bit PRIVATE
     ENABLE_VM_STUB_LOGS
     USE_MINIAUDIO
     MA_NO_RUNTIME_LINKING
+    # miniaudio only links AAudio through libaaudio.so, whose headers need API 26; minSdk is 24, so OpenSL ES
+    # (MA_HAS_OSS) is the backend and it is present on every supported device.
+    MA_NO_AAUDIO
     MINIZ_NO_ARCHIVE_APIS
     MINIZ_NO_STDIO
     BS_HAVE_FREETYPE
