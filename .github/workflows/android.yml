@@ -25,8 +25,6 @@ on:
         required: false
         type: boolean
         default: false
-  release:
-    types: [published]
 
 permissions:
   contents: write
@@ -168,13 +166,7 @@ jobs:
           set -o pipefail
           ./gradlew --no-daemon --stacktrace assembleDebug ${{ steps.bundle.outputs.args }} 2>&1 | tee build-debug.log
 
-      - name: Build (release)
-        working-directory: android
-        run: |
-          set -o pipefail
-          ./gradlew --no-daemon assembleRelease ${{ steps.bundle.outputs.args }} 2>&1 | tee build-release.log
-
-      - name: Collect APKs
+      - name: Collect the APK
         env:
           BUNDLED: ${{ steps.bundle.outputs.bundled }}
           VIDEOS: ${{ env.INCLUDE_VIDEOS }}
@@ -186,13 +178,12 @@ jobs:
             if [ "$VIDEOS" = "true" ]; then suffix="-bundled-videos"; fi
           fi
           cp android/app/build/outputs/apk/debug/app-debug.apk "artifacts/AVGN8bit-debug${suffix}.apk"
-          cp android/app/build/outputs/apk/release/app-release.apk "artifacts/AVGN8bit-release${suffix}.apk"
           ls -lh artifacts
           du -sh artifacts
 
       # Cheap guard against packaging regressions (a stripped-out .so or a missing patch asset would only show up
       # as a crash on the device otherwise).
-      - name: Sanity-check the APKs
+      - name: Sanity-check the APK
         env:
           BUNDLED: ${{ steps.bundle.outputs.bundled }}
         run: |
@@ -205,13 +196,6 @@ jobs:
             "$apksigner" verify --print-certs "$apk" | awk -v apk="$apk" '/SHA-256 digest/ {print "  " apk " signed by " $NF}'
             "$badging" dump badging "$apk" 2>/dev/null | head -1 || true
           done
-          keys=$(for apk in artifacts/*.apk; do
-            "$apksigner" verify --print-certs "$apk" | awk -F': ' '/SHA-256 digest/ {print $2}'
-          done | sort -u | grep -c . || true)
-          if [ "$keys" != "1" ]; then
-            echo "::error::the debug and release APKs are signed with different keys: an update would need an uninstall"
-            exit 1
-          fi
 
           for apk in artifacts/*.apk; do
             echo "== $apk ($(du -h "$apk" | cut -f1))"
@@ -227,37 +211,15 @@ jobs:
             fi
           done
 
-      - name: Upload APKs
+      # The only place a build is published: the artifacts of its own run. Nothing is attached to a GitHub release,
+      # so every download is an explicit choice of a specific run (and an old link can never hand out a stale APK).
+      - name: Upload the APK as an artifact
         uses: actions/upload-artifact@v4
         with:
           name: AVGN8bit-apk
           path: artifacts/*.apk
           if-no-files-found: error
-          retention-days: 30
-
-      - name: Attach APKs to the release
-        if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: artifacts/*.apk
-
-      # A downloadable link that does not expire: artifact downloads need a GitHub session and an unexpired run,
-      # release assets are plain links. Every successful build replaces the rolling "latest-build" pre-release, so the
-      # newest APK is always at /releases/tag/latest-build (this also covers builds triggered from other branches).
-      - name: Publish APKs to the latest-build release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set +e
-          tag=latest-build
-          gh release delete "$tag" --yes --cleanup-tag >/dev/null 2>&1 || true
-          gh release create "$tag" artifacts/*.apk \
-            --target "${{ github.sha }}" \
-            --title "Последняя сборка" \
-            --notes "Сборка ${{ github.run_id }} из ${GITHUB_REF_NAME}." \
-            --prerelease || true
-          gh release view "$tag" --json assets --jq '.assets[] | "\(.name) \(.size) \(.url)"' || true
-          exit 0
+          retention-days: 90
 
       # The Actions log storage is unreachable from some environments, so on failure we build one compact report
       # (interesting lines + the tail of every Gradle log), post it as a PR comment and push it to the ci-logs

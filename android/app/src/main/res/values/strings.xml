@@ -135,9 +135,8 @@
     <string name="editor_title">Controls</string>
     <string name="editor_elements_count">%1$d elements</string>
     <string name="editor_preset">Preset</string>
-    <string name="preset_playstation">PlayStation buttons (× ○ □)</string>
-    <string name="preset_xbox">Xbox buttons (A B X)</string>
-    <string name="preset_pc">PC buttons (Z X C)</string>
+    <string name="preset_playstation">PlayStation pad (× ○ □ △, L1/L2, R1/R2)</string>
+    <string name="preset_xbox">Xbox pad (A B X Y, LB/LT, RB/RT)</string>
     <string name="editor_panel_hidden">The panel is hidden — elements can still be dragged</string>
     <string name="editor_expand">Expand</string>
     <string name="editor_collapse">Collapse</string>

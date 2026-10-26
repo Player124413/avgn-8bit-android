@@ -4,7 +4,8 @@
 > **Butterscotch** runtime (AGPL-3.0) that the PS Vita port in this repository uses, rebuilt with the NDK for
 > arm64-v8a and armeabi-v7a and driven by Jetpack Compose: touch controls with a full layout editor, game import
 > from a folder or a zip, and a launcher that speaks English and Russian. The game files are never shipped: the app
-> reads your own copy of the game and builds `data_vita.win` on the device. Download: the `latest-build` release.
+> reads your own copy of the game and builds `data_vita.win` on the device. Builds are only published as the
+> artifacts of the «Android APK» workflow run (a debug APK; no GitHub releases).
 
 Порт игры *Angry Video Game Nerd 8-bit* на Android на базе свободного рантайма **Butterscotch**
 (AGPL-3.0) — того же, что использован в PS Vita-порте в этом репозитории. Рантайм собран NDK под
@@ -64,30 +65,25 @@
 ```bash
 cd android
 sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.0.12077973" "cmake;3.22.1"
-./gradlew assembleDebug        # debug-сборка
-./gradlew assembleRelease      # release, подписан общим ключом порта (см. «Обновления»)
+./gradlew assembleDebug        # единственная сборка порта, подписана общим ключом (см. «Обновления»)
 ```
 
-Готовый APK: `android/app/build/outputs/apk/debug/app-debug.apk`
-(для release — `.../apk/release/app-release.apk`).
+Готовый APK: `android/app/build/outputs/apk/debug/app-debug.apk`.
 
 Первая сборка долгая: качаются Gradle и зависимости, а рантайм (Box2D, FreeType, miniaudio)
 компилируется под две ABI — `arm64-v8a` и `armeabi-v7a`.
 
 ### GitHub Actions
 
-`.github/workflows/android.yml` собирает APK на каждый push и по кнопке *Run workflow*.
+`.github/workflows/android.yml` собирает **только debug-сборку** на каждый push и по кнопке
+*Run workflow* и кладёт её **только в артефакты** этого запуска: релизов порт не делает, ничего никуда не
+публикуется.
 
-Скачать готовый APK проще всего из **Release** `latest-build`: каждая удачная сборка заменяет его
-ассеты, поэтому ссылка всегда одна и не протухает:
+Как забрать APK: вкладка **Actions** → «Android APK» → нужный запуск → раздел **Artifacts** →
+`AVGN8bit-apk` → внутри `AVGN8bit-debug.apk` (со сборкой «игра внутри APK» — `AVGN8bit-debug-bundled.apk`
+или `AVGN8bit-debug-bundled-videos.apk`). Артефакты хранятся 90 дней и требуют входа в GitHub.
 
-* `https://github.com/Player124413/avgn-8bit-vita/releases/tag/latest-build`
-
-Там лежат `AVGN8bit-release.apk` и `AVGN8bit-debug.apk`; обе сборки подписаны одним и тем же ключом
-порта, поэтому ставятся друг на друга и на любую предыдущую сборку. Для сборки с игрой внутри имена получают суффикс `-bundled` / `-bundled-videos`.
-Копии остаются и в артефактах запуска: **Actions** → нужный запуск → **Artifacts** → `AVGN8bit-apk`
-(артефакты живут ограниченное время и требуют входа в GitHub, поэтому release удобнее).
-Публикация релиза `v*` тоже прикладывает к нему APK.
+Сборка подписана общим ключом порта, поэтому ставится поверх любой предыдущей (см. «Обновления»).
 
 ---
 
@@ -113,7 +109,7 @@ sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.0.12077973" "cmak
 Свой ключ вместо общего — тоже можно, без правки репозитория:
 
 ```bash
-./gradlew assembleRelease -Pkeystore=/path/to/my.p12 -PkeystorePassword=... -PkeyAlias=my -PkeyPassword=...
+./gradlew assembleDebug -Pkeystore=/path/to/my.p12 -PkeystorePassword=... -PkeyAlias=my -PkeyPassword=...
 ```
 
 Тогда пользователям вашей сборки тоже понадобится одно удаление — подпись сменилась.
@@ -165,18 +161,17 @@ sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.0.12077973" "cmak
 
 ```bash
 cd android
-./gradlew assembleRelease -PbundleGame=/путь/к/game.zip
+./gradlew assembleDebug -PbundleGame=/путь/к/game.zip
 # или папкой:
-./gradlew assembleRelease -PbundleGame="/путь/к/AVGN 8-bit"
+./gradlew assembleDebug -PbundleGame="/путь/к/AVGN 8-bit"
 # вместе с катсценами:
-./gradlew assembleRelease -PbundleGame=game.zip -PbundleVideos=true
+./gradlew assembleDebug -PbundleGame=game.zip -PbundleVideos=true
 ```
 
 **В GitHub Actions:** вкладка **Actions** → «Android APK» → **Run workflow**, в поле
 `game_zip_url` — прямая ссылка на архив, при необходимости отметьте `include_videos`. Сборка скачает
-архив, соберёт APK и положит его в артефакты запуска (`AVGN8bit-release-bundled.apk`, или
-`...-bundled-videos.apk`) и в release `latest-build`. В репозиторий архив не попадает: он живёт только
-внутри запуска.
+архив, соберёт APK и положит его в артефакты запуска (`AVGN8bit-debug-bundled.apk`, или
+`...-bundled-videos.apk`). В репозиторий архив не попадает: он живёт только внутри запуска.
 
 Если вы форкаете репозиторий и держите его **приватным**, можно и просто положить архив в
 `android/game.zip` и запустить workflow — он подхватит файл из чекаута (`.gitignore` его не пускает,
@@ -212,20 +207,26 @@ URL. Ссылка должна отдавать файл по GET без авт�
 * назначать на элемент сразу несколько действий: кнопки геймпада, оси ±, клавиши клавиатуры.
 
 Один элемент может отправлять и кнопку геймпада, и клавишу одновременно — так кнопки работают в игре
-в любом случае, независимо от того, что она слушает. По умолчанию: D-Pad + A (прыжок) + B (стрельба)
-+ X (предмет) + Start + Select.
+в любом случае, независимо от того, что она слушает. По умолчанию ставится полный геймпад (см. пресеты
+ниже), а не три кнопки: лишние просто ничего не нажимают, если игра их не использует.
 
-Пресетов ровно три, и отличаются они только надписями на кнопках — раскладка, размеры и привязки у
-них одинаковые (прыжок, стрельба, предмет; D-Pad, Start, Select):
+Пресетов два, и это **полные геймпады**: отличаются они только надписями на кнопках, раскладка, размеры
+и привязки одинаковые.
 
 | Пресет | Кнопки |
 |---|---|
-| **PlayStation** | ✕ ○ □ |
-| **Xbox** | A B X |
-| **PC** | Z X C |
+| **PlayStation** | × ○ □ △, L1/L2, R1/R2, L3/R3, Select, Start, PS |
+| **Xbox** | A B X Y, LB/LT, RB/RT, L3/R3, Select, Start, Xbox |
 
-Так кнопки на экране называются привычно для того геймпада, с которым вы играли в игру раньше. Любую
-надпись потом можно переписать вручную в редакторе.
+Что где лежит: D-Pad под левым большим пальцем, четыре лицевые кнопки ромбом под правым (низ — прыжок,
+право — стрельба, лево — предмет, верх — четвёртая кнопка геймпада), курки по верхним углам, Select /
+Start / центральная кнопка по центру сверху, L3/R3 — внизу. Ромб лицевых кнопок круглый на любом
+экране: расстояния пересчитываются из долей короткой стороны, поэтому на широком телефоне кнопки не
+разъезжаются в крест.
+
+Каждая кнопка отправляет и кнопку геймпада, и (где у игры есть действие) клавишу клавиатуры, поэтому
+работает независимо от того, что игра слушает. Любую надпись и положение потом можно переписать в
+редакторе.
 
 Надпись рисуется **над** кнопкой (а если кнопка у самого верха экрана — под ней), отдельным полем,
 которое не обрезает текст: раньше она лежала внутри круга размером с кнопку, из-за чего «Esc» и «Start»

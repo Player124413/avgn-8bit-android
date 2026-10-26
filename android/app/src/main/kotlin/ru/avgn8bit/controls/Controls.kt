@@ -116,8 +116,15 @@ data class ControlElement(
     val haptic: Boolean = true
 ) {
     companion object {
-        fun button(x: Float, y: Float, size: Float, label: String, bindings: List<Binding>, opacity: Float = 0.45f) =
-            ControlElement(UUID.randomUUID().toString(), "button", x, y, size, label, opacity, "circle", bindings)
+        fun button(
+            x: Float,
+            y: Float,
+            size: Float,
+            label: String,
+            bindings: List<Binding>,
+            opacity: Float = 0.45f,
+            style: String = "circle"
+        ) = ControlElement(UUID.randomUUID().toString(), "button", x, y, size, label, opacity, style, bindings)
 
         fun dpad(x: Float, y: Float, size: Float, pad: Boolean = true, keys: Boolean = true, opacity: Float = 0.42f) =
             ControlElement(
@@ -150,7 +157,7 @@ data class ControlElement(
 
 @Serializable
 data class ControlLayout(
-    val version: Int = 1,
+    val version: Int = Presets.LAYOUT_VERSION,
     val name: String = "AVGN 8-bit",
     val elements: List<ControlElement> = emptyList()
 ) {
@@ -163,31 +170,39 @@ data class ControlLayout(
 }
 
 /**
- * The three button schemes the launcher offers. The layout behind them is the same — a D-Pad, the three action
- * buttons the game uses (jump, shoot, item) and Start/Back — only the names on the buttons change, so the player can
- * have the buttons of the controller they are used to. Whatever the scheme, a button sends both a gamepad button and a
- * key (see the note at the top of this file), which is all the game itself ever sees.
+ * The two button schemes the launcher offers: the whole PlayStation pad or the whole Xbox pad. Both layouts carry every
+ * button of a DualShock / Xbox controller — the four face buttons, L1/L2, R1/R2, the stick clicks (L3/R3), Select,
+ * Start and the guide button, on top of the D-Pad — only the names differ, so the player finds the buttons of the
+ * controller they are used to. Every button also sends a keyboard key where the game has one, so the layout works no
+ * matter which of the two the game listens to (see the note at the top of this file).
  */
 enum class ButtonScheme(@StringRes val labelRes: Int) {
     PLAYSTATION(R.string.preset_playstation),
-    XBOX(R.string.preset_xbox),
-    PC(R.string.preset_pc);
+    XBOX(R.string.preset_xbox);
 
     /**
-     * Names of the action buttons, in the order jump, shoot, item. The symbols are the plain Unicode ones (a
-     * multiplication sign, not a "ballot X") so they render in every system font instead of a missing-glyph box.
+     * The four face buttons, in the order bottom, right, left, top — the way they sit on the pad. The first three are
+     * the game's own actions (jump, shoot, item); the top one is on the pad, so it is drawn too. The symbols are the
+     * plain Unicode ones (a multiplication sign, not a "ballot X") so every system font has them.
      */
-    val actionLabels: List<String>
+    val faceLabels: List<String>
         get() = when (this) {
-            PLAYSTATION -> listOf("×", "○", "□")
-            XBOX -> listOf("A", "B", "X")
-            PC -> listOf("Z", "X", "C")
+            PLAYSTATION -> listOf("×", "○", "□", "△")
+            XBOX -> listOf("A", "B", "X", "Y")
         }
 
+    /** The button in the middle of the pad: PS on a DualShock, the guide button on an Xbox controller. */
+    val guideLabel: String
+        get() = if (this == PLAYSTATION) "PS" else "Xbox"
 }
 
 /** Ready-made layouts: one per [ButtonScheme], in the two orientations. */
 object Presets {
+    // Nominal screen shapes the layouts are drawn for. They only decide how a distance in shorter-side units maps onto
+    // the x and the y axis; a phone that is a little wider or narrower still gets a round diamond instead of a cross.
+    private const val LANDSCAPE_ASPECT = 16f / 9f
+    private const val PORTRAIT_ASPECT = 9f / 16f
+
     private const val JUMP_KEY = 90      // Z
     private const val SHOOT_KEY = 88     // X
     private const val ITEM_KEY = 67      // C
@@ -198,36 +213,93 @@ object Presets {
     fun layout(scheme: ButtonScheme, portrait: Boolean): ControlLayout =
         if (portrait) portraitLayout(scheme) else landscapeLayout(scheme)
 
-    /** D-Pad on the left, the three action buttons under the right thumb, Start and Back in the top right corner. */
-    private fun landscapeLayout(scheme: ButtonScheme): ControlLayout {
-        val (jump, shoot, item) = scheme.actionLabels
-        return ControlLayout(
-            name = scheme.name,
-            elements = listOf(
-                ControlElement.dpad(x = 0.15f, y = 0.70f, size = 0.42f),
-                ControlElement.button(0.845f, 0.735f, 0.20f, jump, listOf(Binding.pad(0), Binding.key(JUMP_KEY)), 0.50f),
-                ControlElement.button(0.700f, 0.855f, 0.20f, shoot, listOf(Binding.pad(1), Binding.key(SHOOT_KEY)), 0.50f),
-                ControlElement.button(0.665f, 0.615f, 0.165f, item, listOf(Binding.pad(2), Binding.key(ITEM_KEY)), 0.42f),
-                ControlElement.button(0.955f, 0.095f, 0.115f, "≡", listOf(Binding.pad(9), Binding.key(START_KEY)), 0.30f),
-                ControlElement.button(0.865f, 0.095f, 0.10f, "Esc", listOf(Binding.pad(8), Binding.key(BACK_KEY)), 0.24f)
-            )
+    // Layout coordinates are fractions of the screen (0..1 each way) while sizes and distances are fractions of its
+    // shorter side. These two turn such a distance into an offset on each axis: that is what keeps the diamond of face
+    // buttons round instead of stretching it into a cross on a screen that is not square.
+    private fun aspect(portrait: Boolean) = if (portrait) PORTRAIT_ASPECT else LANDSCAPE_ASPECT
+
+    private fun xFactor(portrait: Boolean) = 1f / aspect(portrait).coerceAtLeast(1f)
+
+    private fun yFactor(portrait: Boolean) = aspect(portrait).coerceAtMost(1f)
+
+    /**
+     * The four face buttons in a diamond around ([cx], [cy]), [step] apart (shorter-side units): bottom = jump,
+     * right = shoot, left = item, top = the extra face button.
+     */
+    private fun faceButtons(
+        scheme: ButtonScheme,
+        cx: Float,
+        cy: Float,
+        step: Float,
+        size: Float,
+        portrait: Boolean
+    ): List<ControlElement> {
+        val dx = step * xFactor(portrait)
+        val dy = step * yFactor(portrait)
+        val (jump, shoot, item, extra) = scheme.faceLabels
+        return listOf(
+            ControlElement.button(cx, cy + dy, size, jump, listOf(Binding.pad(PadButton.A.index), Binding.key(JUMP_KEY)), 0.55f),
+            ControlElement.button(cx + dx, cy, size, shoot, listOf(Binding.pad(PadButton.B.index), Binding.key(SHOOT_KEY)), 0.50f),
+            ControlElement.button(cx - dx, cy, size, item, listOf(Binding.pad(PadButton.X.index), Binding.key(ITEM_KEY)), 0.50f),
+            ControlElement.button(cx, cy - dy, size, extra, listOf(Binding.pad(PadButton.Y.index)), 0.45f)
         )
     }
 
-    /** Both thumbs on the screen edge, for phones held in portrait. */
-    private fun portraitLayout(scheme: ButtonScheme): ControlLayout {
-        val (jump, shoot, item) = scheme.actionLabels
-        return ControlLayout(
-            name = scheme.name,
-            elements = listOf(
-                ControlElement.dpad(x = 0.19f, y = 0.80f, size = 0.40f),
-                ControlElement.button(0.80f, 0.745f, 0.19f, jump, listOf(Binding.pad(0), Binding.key(JUMP_KEY)), 0.50f),
-                ControlElement.button(0.665f, 0.865f, 0.19f, shoot, listOf(Binding.pad(1), Binding.key(SHOOT_KEY)), 0.50f),
-                ControlElement.button(0.885f, 0.885f, 0.155f, item, listOf(Binding.pad(2), Binding.key(ITEM_KEY)), 0.42f),
-                ControlElement.button(0.90f, 0.545f, 0.11f, "≡", listOf(Binding.pad(9), Binding.key(START_KEY)), 0.30f)
-            )
-        )
+    /** A shoulder button: rounded, so it reads as a trigger rather than as another face button. */
+    private fun shoulder(x: Float, y: Float, size: Float, label: String, button: PadButton) =
+        ControlElement.button(x, y, size, label, listOf(Binding.pad(button.index)), 0.38f, style = "rounded")
+
+    /** Select / Start / the guide button and the two stick clicks: small, they are rarely used in this game. */
+    private fun small(x: Float, y: Float, size: Float, label: String, vararg bindings: Binding) =
+        ControlElement.button(x, y, size, label, bindings.toList(), 0.30f, style = "rounded")
+
+    private fun bottomRow(scheme: ButtonScheme, y: Float, size: Float) = listOf(
+        small(0.44f, y, size, "Select", Binding.pad(PadButton.SELECT.index), Binding.key(BACK_KEY)),
+        small(0.50f, y, size * 0.9f, scheme.guideLabel, Binding.pad(PadButton.HOME.index)),
+        small(0.56f, y, size, "Start", Binding.pad(PadButton.START.index), Binding.key(START_KEY))
+    )
+
+    /**
+     * Landscape: D-Pad under the left thumb, the face buttons under the right one, the shoulders along the top edge
+     * (clear of the pause button in the corner) and Select / Start / guide in the middle of the top edge.
+     */
+    private fun landscapeLayout(scheme: ButtonScheme): ControlLayout {
+        val elements = buildList {
+            add(ControlElement.dpad(x = 0.115f, y = 0.70f, size = 0.40f))
+            addAll(faceButtons(scheme, cx = 0.83f, cy = 0.685f, step = 0.195f, size = 0.155f, portrait = false))
+            add(shoulder(0.105f, 0.085f, 0.14f, "L2", PadButton.L2))
+            add(shoulder(0.235f, 0.085f, 0.14f, "L1", PadButton.L1))
+            add(shoulder(0.765f, 0.085f, 0.14f, "R1", PadButton.R1))
+            add(shoulder(0.895f, 0.085f, 0.14f, "R2", PadButton.R2))
+            addAll(bottomRow(scheme, y = 0.085f, size = 0.10f))
+            add(small(0.34f, 0.92f, 0.10f, "L3", Binding.pad(PadButton.L3.index)))
+            add(small(0.66f, 0.92f, 0.10f, "R3", Binding.pad(PadButton.R3.index)))
+        }
+        return ControlLayout(name = scheme.name, elements = elements)
     }
+
+    /** Portrait: both thumbs on the lower edge, the shoulders across the top edge. */
+    private fun portraitLayout(scheme: ButtonScheme): ControlLayout {
+        val elements = buildList {
+            add(ControlElement.dpad(x = 0.19f, y = 0.78f, size = 0.38f))
+            addAll(faceButtons(scheme, cx = 0.72f, cy = 0.70f, step = 0.19f, size = 0.15f, portrait = true))
+            add(shoulder(0.15f, 0.08f, 0.13f, "L2", PadButton.L2))
+            add(shoulder(0.35f, 0.08f, 0.13f, "L1", PadButton.L1))
+            add(shoulder(0.65f, 0.08f, 0.13f, "R1", PadButton.R1))
+            add(shoulder(0.85f, 0.08f, 0.13f, "R2", PadButton.R2))
+            addAll(bottomRow(scheme, y = 0.23f, size = 0.10f))
+            add(small(0.50f, 0.93f, 0.10f, "L3", Binding.pad(PadButton.L3.index)))
+            add(small(0.72f, 0.93f, 0.10f, "R3", Binding.pad(PadButton.R3.index)))
+        }
+        return ControlLayout(name = scheme.name, elements = elements)
+    }
+
+    /**
+     * Bumped whenever the ready-made layouts change shape: a layout saved by an older version of the app is replaced
+     * by the current default once (see [ControlsStore.load]), so an update actually shows the new pad instead of the
+     * one the player tuned months ago against a layout that no longer exists.
+     */
+    const val LAYOUT_VERSION = 2
 
     /** What a fresh install starts with. */
     val defaultScheme = ButtonScheme.PLAYSTATION
@@ -247,12 +319,21 @@ class ControlsStore(context: Context) {
 
     fun load(portrait: Boolean): ControlLayout {
         val key = if (portrait) "layout_portrait" else "layout_landscape"
-        val raw = prefs.getString(key, null) ?: return if (portrait) Presets.defaultPortrait() else Presets.defaultLandscape()
-        return try {
+        val fallback = if (portrait) Presets.defaultPortrait() else Presets.defaultLandscape()
+        val raw = prefs.getString(key, null) ?: return fallback
+        val stored = try {
             json.decodeFromString(ControlLayout.serializer(), raw)
-        } catch (t: Throwable) {
-            if (portrait) Presets.defaultPortrait() else Presets.defaultLandscape()
+        } catch (_: Throwable) {
+            return fallback
         }
+        // A layout from an older version of the app: the buttons it describes are not the ones this build draws, so
+        // start from the current preset. The player's own tuning since then is kept (and it can be redone in the
+        // editor in a minute).
+        if (stored.version < Presets.LAYOUT_VERSION) {
+            save(portrait, fallback)
+            return fallback
+        }
+        return stored
     }
 
     fun save(portrait: Boolean, layout: ControlLayout) {

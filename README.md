@@ -8,8 +8,8 @@ This repository holds two builds of *Angry Video Game Nerd 8-bit*: the original 
 основе порт для **Android**. Обе запускают ваш собственный `data.win` через один и тот же свободный
 рантайм GameMaker — **Butterscotch**, — и ни одна из них не содержит файлов игры.
 
-* Android: `android/` (Kotlin + Jetpack Compose, NDK/CMake для рантайма), готовый APK — в релизе
-  [`latest-build`](https://github.com/Player124413/avgn-8bit-vita/releases/tag/latest-build),
+* Android: `android/` (Kotlin + Jetpack Compose, NDK/CMake для рантайма), готовый APK — в артефактах
+  запуска workflow «Android APK» (**Actions** → запуск → **Artifacts** → `AVGN8bit-apk`),
   подробности сборки — [`android/README.md`](android/README.md).
 * PS Vita: `AVGN8bit-Vita-1.10.vpk` + `AVGN8bit-Vita-Patcher.bat` (инструкция ниже).
 
@@ -40,11 +40,10 @@ This repository holds two builds of *Angry Video Game Nerd 8-bit*: the original 
 Порт для Android: тот же рантайм, та же копия игры, сенсорное управление с полноценным редактором раскладки,
 масштаб 4:3 / широкий экран, CRT-фильтр и логи, которые можно отправить одной кнопкой.
 
-* **APK**: релиз [`latest-build`](https://github.com/Player124413/avgn-8bit-vita/releases/tag/latest-build)
-  (обновляется каждой удачной сборкой: `AVGN8bit-release.apk`, `AVGN8bit-debug.apk`), а также артефакты
-  запуска workflow «Android APK».
+* **APK**: только debug-сборка `AVGN8bit-debug.apk`, и только в **артефактах** запуска workflow «Android APK»
+  (**Actions** → нужный запуск → **Artifacts** → `AVGN8bit-apk`). Отдельных релизов порт не делает.
 * **Игра** импортируется в приложении папкой или zip-архивом. Можно собрать APK сразу с игрой внутри:
-  `./gradlew assembleRelease -PbundleGame=game.zip` или запустить workflow с ссылкой на архив
+  `./gradlew assembleDebug -PbundleGame=game.zip` или запустить workflow с ссылкой на архив
   (`game_zip_url`).
 * **Обновления** ставятся поверх предыдущей версии: файлы игры и настройки остаются, удалять приложение
   не нужно (один ключ подписи на все сборки + растущий `versionCode`, см. «Обновления» в `android/README.md`).

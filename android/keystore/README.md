@@ -1,7 +1,7 @@
 # Ключ подписи APK / APK signing key
 
-`avgn8bit-update.p12` — ключ, которым подписываются **все** сборки порта: и debug, и release, и собранные CI,
-и собранные локально.
+`avgn8bit-update.p12` — ключ, которым подписываются **все** сборки порта: и собранные CI, и собранные
+локально.
 
 ## Зачем он в репозитории
 
@@ -26,11 +26,11 @@ Android ставит обновление поверх установленно�
 Посмотреть отпечаток у готового APK:
 
 ```bash
-$ANDROID_HOME/build-tools/35.0.0/apksigner verify --print-certs AVGN8bit-release.apk
+$ANDROID_HOME/build-tools/35.0.0/apksigner verify --print-certs AVGN8bit-debug.apk
 ```
 
-CI дополнительно сверяет отпечатки debug- и release-APK между собой: если они разойдутся, сборка упадёт, потому что
-такой APK больше не установится поверх предыдущего.
+CI печатает отпечаток собранного APK: если он когда-нибудь разойдётся с этим, такой APK больше не
+установится поверх предыдущего.
 
 ## Свой ключ
 
@@ -38,7 +38,7 @@ CI дополнительно сверяет отпечатки debug- и releas
 репозитории:
 
 ```bash
-./gradlew assembleRelease \
+./gradlew assembleDebug \
   -Pkeystore=/path/to/my.p12 -PkeystorePassword=... -PkeyAlias=my -PkeyPassword=...
 ```
 
