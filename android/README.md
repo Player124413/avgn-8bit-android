@@ -58,8 +58,17 @@ sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.0.12077973" "cmak
 ### GitHub Actions
 
 `.github/workflows/android.yml` собирает APK на каждый push и по кнопке *Run workflow*.
-Скачать результат: вкладка **Actions** → нужный запуск → **Artifacts** → `AVGN8bit-apk`.
-Тег вида `v*` дополнительно создаёт **Release** с приложенным APK.
+
+Скачать готовый APK проще всего из **Release** `latest-build`: каждая удачная сборка заменяет его
+ассеты, поэтому ссылка всегда одна и не протухает:
+
+* `https://github.com/Player124413/avgn-8bit-vita/releases/tag/latest-build`
+
+Там лежат `AVGN8bit-release.apk` (подписан debug-ключом, ставится «из браузера») и
+`AVGN8bit-debug.apk`. Для сборки с игрой внутри имена получают суффикс `-bundled` / `-bundled-videos`.
+Копии остаются и в артефактах запуска: **Actions** → нужный запуск → **Artifacts** → `AVGN8bit-apk`
+(артефакты живут ограниченное время и требуют входа в GitHub, поэтому release удобнее).
+Публикация релиза `v*` тоже прикладывает к нему APK.
 
 ---
 
@@ -117,8 +126,9 @@ cd android
 
 **В GitHub Actions:** вкладка **Actions** → «Android APK» → **Run workflow**, в поле
 `game_zip_url` — прямая ссылка на архив, при необходимости отметьте `include_videos`. Сборка скачает
-архив, соберёт APK и положит в артефакты файл `AVGN8bit-release-bundled.apk` (или
-`...-bundled-videos.apk`). В репозиторий архив не попадает: он живёт только внутри запуска.
+архив, соберёт APK и положит его в артефакты запуска (`AVGN8bit-release-bundled.apk`, или
+`...-bundled-videos.apk`) и в release `latest-build`. В репозиторий архив не попадает: он живёт только
+внутри запуска.
 
 Если вы форкаете репозиторий и держите его **приватным**, можно и просто положить архив в
 `android/game.zip` и запустить workflow — он подхватит файл из чекаута (`.gitignore` его не пускает,
