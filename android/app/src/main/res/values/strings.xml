@@ -229,5 +229,5 @@ This usually means the game files do not match this version of the port: it need
     <string name="credits_channel">My Telegram channel, where the new builds are posted:</string>
     <string name="credits_footer">Have fun with the game, and send the logs if anything does not work: Settings → Share the log.</string>
     <string name="quick_crt_hint">CRT adds a television look on top of the game. The game already draws its own — turn this on if you like it.</string>
-    <string name="game_lang_missing">The folder Lang (the game's texts) was not imported, so its own menus will have no labels. Import the game files again with the Lang folder.</string>
+    <string name="game_lang_missing">The folder Lang (the texts of the game) was not imported, so its own menus will have no labels. Import the game files again with the Lang folder.</string>
 </resources>
