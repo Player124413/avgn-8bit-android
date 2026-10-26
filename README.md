@@ -3,7 +3,7 @@ You need: A copy of your own game, a Windows PC, and a hacked Vita with VitaShel
 
 On your PC (once)
 
-Extract the AVGN8bit zip file.
+Extract the AVGN8bit-Vita zip file.
 
 Drop AVGN8bit-Vita-Patcher.bat into your own Windows Steam AVGN game folder.
 Double-click the .bat file. If Windows gives you a warning, hit → Run anyway.
