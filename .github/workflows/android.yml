@@ -30,6 +30,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 env:
   GAME_ZIP_URL: ${{ github.event.inputs.game_zip_url }}
@@ -230,12 +231,17 @@ jobs:
           {
             echo "### Сборка не прошла"
             echo ""
-            echo "Строки с ошибками (полный лог — в артефактах запуска):"
+            echo "**Все ошибки компилятора:**"
             echo '```text'
-            grep -a -E "^e: |^w: .*\.kt|error:|CMake Error|FAILURE:|Execution failed for task|What went wrong|Caused by:" "$log" \
-              | head -120
+            grep -a -E "^e: |error:|CMake Error|FAILURE:|Execution failed for task|What went wrong|Caused by:" "$log" | head -150
+            echo '```'
+            echo ""
+            echo "**Контекст вокруг упавшей задачи:**"
+            echo '```text'
+            grep -a -n -B5 -A25 "> Task :app:compile.*Kotlin" "$log" | head -120
             echo '```'
           } > /tmp/comment.md
+          wc -c /tmp/comment.md
           gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/comment.md || true
 
       - name: Upload build logs on failure
