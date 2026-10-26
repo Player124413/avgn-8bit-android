@@ -6,6 +6,7 @@ import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.zip.ZipInputStream
 
 /**
  * The game's files on the phone: what gets imported from the user's copy of AVGN 8-bit, and where the runtime
@@ -17,15 +18,22 @@ import java.io.File
  *   files/avgn/Lang, Attract  texts and the attract-mode screens
  *   files/avgn/Cutscenes       videos (optional, they are the big part of the install)
  *   files/saves                saves, options, log.txt
+ *
+ * The user can bring the files in two ways: pick the game folder (SAF tree) or pick a zip that contains it, which
+ * is what people usually end up with after zipping the Steam folder or the Vita patcher's output.
  */
 object GameStorage {
     private const val DIR_DATA = "avgn"
     private const val DIR_SAVES = "saves"
+    const val DATA_WIN = "data.win"
+    const val VITA_WIN = "data_vita.win"
 
     private val ROOT_DIRS = listOf("Lang", "Attract", "Cutscenes")
+    private val FONT_EXTENSIONS = listOf(".ttf", ".otf")
 
     fun dataDir(context: Context): File = File(context.filesDir, DIR_DATA).apply { mkdirs() }
     fun savesDir(context: Context): File = File(context.filesDir, DIR_SAVES).apply { mkdirs() }
+
     /** What the app itself logs. */
     fun logFile(context: Context): File = File(File(context.filesDir, "logs"), "app.log")
 
@@ -34,7 +42,11 @@ object GameStorage {
 
     /** The retail data.win the user copied in; this is also what the patch is applied to. */
     fun rawDataWin(context: Context): File? =
-        File(dataDir(context), "data.win").takeIf { it.isFile && it.length() > 0 }
+        File(dataDir(context), DATA_WIN).takeIf { it.isFile && it.length() > 0 }
+
+    /** A data.win that was already patched elsewhere (the Vita patcher's output), if the user brought one. */
+    fun patchedDataWin(context: Context): File? =
+        File(dataDir(context), VITA_WIN).takeIf { it.isFile && it.length() > 0 }
 
     /**
      * What the runtime actually loads: the patched data.win when it is there, the retail one otherwise. The Vita
@@ -43,11 +55,17 @@ object GameStorage {
     fun dataWin(context: Context): File? {
         val dir = dataDir(context)
         if (GameDataPatcher.isPatched(dir)) return File(dir, GameDataPatcher.OUTPUT_NAME)
-        return File(dir, GameDataPatcher.OUTPUT_NAME).takeIf { it.isFile && it.length() > 0 }
-            ?: rawDataWin(context)
+        return patchedDataWin(context) ?: rawDataWin(context)
     }
 
-    fun isReady(context: Context): Boolean = rawDataWin(context) != null || dataWin(context) != null
+    fun isReady(context: Context): Boolean = rawDataWin(context) != null || patchedDataWin(context) != null
+
+    fun installedSize(context: Context): Long = dataDir(context).walkTopDown().filter { it.isFile }.sumOf { it.length() }
+
+    fun clearImportedFiles(context: Context) {
+        val dir = dataDir(context)
+        dir.listFiles()?.forEach { it.deleteRecursively() }
+    }
 
     /**
      * Builds `<data dir>/data_vita.win` from the imported data.win and the patch embedded in the app. Safe to call
@@ -58,64 +76,157 @@ object GameStorage {
      */
     fun ensurePatched(context: Context, onProgress: (Float) -> Unit = {}): GameDataPatcher.Result {
         val dir = dataDir(context)
-        val patched = File(dir, GameDataPatcher.OUTPUT_NAME)
-        if (GameDataPatcher.isPatched(dir)) return GameDataPatcher.Result(true, "Уже собран", patched)
+        if (GameDataPatcher.isPatched(dir)) {
+            return GameDataPatcher.Result(true, "Уже собран", File(dir, GameDataPatcher.OUTPUT_NAME))
+        }
+        // Someone brought the Vita patcher's output instead of the retail data.win: nothing to do.
+        patchedDataWin(context)?.let {
+            return GameDataPatcher.Result(true, "Взят готовый data_vita.win", it)
+        }
         val raw = rawDataWin(context) ?: return GameDataPatcher.Result(false, "Нет файла data.win")
         return GameDataPatcher.apply(context, raw, dir, onProgress)
     }
 
-    fun installedSize(context: Context): Long = dataDir(context).walkTopDown().filter { it.isFile }.sumOf { it.length() }
+    // ===[ Import ]===
 
-    fun clearImportedFiles(context: Context) {
-        val dir = dataDir(context)
-        dir.listFiles()?.forEach { it.deleteRecursively() }
+    /** Where a file will be read from: a SAF document, or an entry inside the picked zip. */
+    data class FileEntry(
+        val relative: String,
+        val size: Long,
+        val document: DocumentFile? = null,
+        val zipPath: String? = null
+    )
+
+    enum class Kind { FOLDER, ZIP }
+
+    data class ImportPreview(
+        val gameFolderName: String?,
+        val entries: List<FileEntry>,
+        val totalBytes: Long,
+        val error: String?,
+        val sizesByFolder: Map<String, Long> = emptyMap(),
+        val kind: Kind = Kind.FOLDER,
+        val uri: Uri? = null,
+        /** True when at least one entry had no size in the zip header, so the total is an estimate. */
+        val sizesIncomplete: Boolean = false
+    ) {
+        val hasDataWin: Boolean get() = entries.any { it.relative == DATA_WIN || it.relative == VITA_WIN }
+        val videoBytes: Long get() = sizesByFolder["Cutscenes"] ?: 0L
+        val fileCount: Int get() = entries.size
     }
-
-    /** A file the import would take, resolved from the picked folder. */
-    data class Entry(val file: DocumentFile, val relative: String, val size: Long)
 
     /**
      * Looks at the picked folder (or a single folder below it, so picking the Steam folder or the game folder
      * both work) and returns its data.win if it looks like AVGN 8-bit.
      */
-    fun inspect(context: Context, uri: Uri): ImportPreview {
+    fun inspectFolder(context: Context, uri: Uri): ImportPreview {
         val root = DocumentFile.fromTreeUri(context, uri)
-            ?: return ImportPreview(null, emptyList(), 0, "Папка недоступна")
+            ?: return ImportPreview(null, emptyList(), 0, "Папка недоступна", kind = Kind.FOLDER)
         val gameRoot = findGameRoot(root)
-            ?: return ImportPreview(null, emptyList(), 0, "В этой папке нет data.win — выберите папку с файлами игры")
+            ?: return ImportPreview(
+                null, emptyList(), 0,
+                "В этой папке нет data.win — выберите папку с файлами игры",
+                kind = Kind.FOLDER
+            )
         val entries = collect(gameRoot, includeVideos = true)
-        val sizes = entries.groupBy { it.relative.substringBefore('/') }.mapValues { (_, list) -> list.sumOf { it.size } }
-        return ImportPreview(gameRoot.name ?: "AVGN 8-bit", entries, entries.sumOf { it.size }, null, sizes)
+        return ImportPreview(
+            gameFolderName = gameRoot.name ?: "AVGN 8-bit",
+            entries = entries,
+            totalBytes = entries.sumOf { it.size },
+            error = null,
+            sizesByFolder = sizesByFolder(entries),
+            kind = Kind.FOLDER,
+            uri = uri
+        )
     }
 
+    /**
+     * Looks inside a zip (the app accepts one instead of a folder, which is how most people move a 1.5 GB game
+     * around). Only the entries the port needs are listed; everything else is ignored.
+     */
+    fun inspectZip(context: Context, uri: Uri): ImportPreview {
+        val names = ArrayList<String>()
+        val sizes = HashMap<String, Long>()
+        var incomplete = false
+        try {
+            openZip(context, uri).use { zip ->
+                var guard = 0
+                while (true) {
+                    val entry = zip.nextEntry ?: break
+                    if (++guard > 200_000) break
+                    if (entry.isDirectory) continue
+                    names += entry.name
+                    if (entry.size >= 0) sizes[entry.name] = entry.size else incomplete = true
+                }
+            }
+        } catch (t: Throwable) {
+            AppLog.write("Could not read the zip: ${t.stackTraceToString()}")
+            return ImportPreview(
+                null, emptyList(), 0,
+                "Не удалось прочитать архив: ${t.message ?: "файл повреждён"}",
+                kind = Kind.ZIP, uri = uri
+            )
+        }
+
+        val root = zipGameRoot(names)
+            ?: return ImportPreview(
+                null, emptyList(), 0,
+                "В архиве нет data.win — нужен zip с файлами игры или с папкой AVGN8bit из Vita-патчера",
+                kind = Kind.ZIP, uri = uri
+            )
+        val folderName = root.trimEnd('/').substringAfterLast('/').ifEmpty { "AVGN 8-bit" }
+
+        val entries = ArrayList<FileEntry>()
+        for (name in names) {
+            val relative = zipRelative(root, name) ?: continue
+            entries += FileEntry(relative, sizes[name] ?: 0L, zipPath = name)
+        }
+        entries.sortBy { it.relative }
+        return ImportPreview(
+            gameFolderName = folderName,
+            entries = entries,
+            totalBytes = entries.sumOf { it.size },
+            error = null,
+            sizesByFolder = sizesByFolder(entries),
+            kind = Kind.ZIP,
+            uri = uri,
+            sizesIncomplete = incomplete
+        )
+    }
+
+    private fun sizesByFolder(entries: List<FileEntry>): Map<String, Long> =
+        entries.groupBy { it.relative.substringBefore('/') }.mapValues { (_, list) -> list.sumOf { it.size } }
+
     private fun findGameRoot(root: DocumentFile): DocumentFile? {
-        if (root.findFile("data.win") != null || root.findFile("data_vita.win") != null) return root
+        if (root.findFile(DATA_WIN) != null || root.findFile(VITA_WIN) != null) return root
         // The Vita folder layout (AVGN8bit/) or the game folder chosen one level too high.
         root.listFiles().filter { it.isDirectory }.forEach { child ->
-            if (child.findFile("data.win") != null || child.findFile("data_vita.win") != null) return child
+            if (child.findFile(DATA_WIN) != null || child.findFile(VITA_WIN) != null) return child
         }
         return null
     }
 
-    private fun collect(root: DocumentFile, includeVideos: Boolean): List<Entry> {
-        val out = ArrayList<Entry>()
+    private fun collect(root: DocumentFile, includeVideos: Boolean): List<FileEntry> {
+        val out = ArrayList<FileEntry>()
         root.listFiles().forEach { child ->
             val name = child.name ?: return@forEach
             val lower = name.lowercase()
             if (child.isFile) {
                 when {
-                    name == "data.win" || name == "data_vita.win" -> out += Entry(child, "data.win", child.length())
-                    lower.endsWith(".ttf") || lower.endsWith(".otf") -> out += Entry(child, name, child.length())
+                    // Keep the patched name: a file from the Vita patcher must not be overwritten with data.win.
+                    lower == DATA_WIN -> out += FileEntry(DATA_WIN, child.length(), document = child)
+                    lower == VITA_WIN -> out += FileEntry(VITA_WIN, child.length(), document = child)
+                    FONT_EXTENSIONS.any { lower.endsWith(it) } -> out += FileEntry(name, child.length(), document = child)
                 }
-            } else if (child.isDirectory && ROOT_DIRS.any { it.equals(name, ignoreCase = true) }) {
-                val target = ROOT_DIRS.first { it.equals(name, ignoreCase = true) }
-                collectDirectory(child, target, includeVideos, out)
+            } else if (child.isDirectory) {
+                val canonical = ROOT_DIRS.firstOrNull { it.equals(name, ignoreCase = true) } ?: return@forEach
+                collectDirectory(child, canonical, includeVideos, out)
             }
         }
         return out
     }
 
-    private fun collectDirectory(dir: DocumentFile, relative: String, includeVideos: Boolean, out: MutableList<Entry>) {
+    private fun collectDirectory(dir: DocumentFile, relative: String, includeVideos: Boolean, out: MutableList<FileEntry>) {
         dir.listFiles().forEach { child ->
             val name = child.name ?: return@forEach
             val path = "$relative/$name"
@@ -123,48 +234,161 @@ object GameStorage {
                 collectDirectory(child, path, includeVideos, out)
             } else {
                 if (!includeVideos && name.lowercase().endsWith(".mp4")) return@forEach
-                out += Entry(child, path, child.length())
+                out += FileEntry(path, child.length(), document = child)
             }
         }
-    }
-
-    data class ImportPreview(
-        val gameFolderName: String?,
-        val entries: List<Entry>,
-        val totalBytes: Long,
-        val error: String?,
-        val sizesByFolder: Map<String, Long> = emptyMap()
-    ) {
-        val hasDataWin: Boolean get() = entries.any { it.relative == "data.win" }
-        val videoBytes: Long get() = sizesByFolder["Cutscenes"] ?: 0L
     }
 
     /**
      * Copies the game into the app. [includeVideos] false skips the cutscenes, which is what most of the size is:
      * the game then skips them instead of playing them.
      */
-    suspend fun import(context: Context, entries: List<Entry>, includeVideos: Boolean, onProgress: (String, Float) -> Unit) =
-        withContext(Dispatchers.IO) {
-            val target = dataDir(context)
-            clearImportedFiles(context)
-            target.mkdirs()
-
-            val wanted = entries.filter { includeVideos || !it.relative.lowercase().endsWith(".mp4") }
-            val total = wanted.sumOf { it.size }.coerceAtLeast(1L)
-            var copied = 0L
-
-            for (entry in wanted) {
-                val out = File(target, entry.relative)
-                out.parentFile?.mkdirs()
-                onProgress(entry.relative, copied.toFloat() / total)
-                context.contentResolver.openInputStream(entry.file.uri)?.use { input ->
-                    out.outputStream().use { output -> input.copyTo(output, 1 shl 16) }
-                }
-                copied += entry.size
+    suspend fun import(
+        context: Context,
+        preview: ImportPreview,
+        includeVideos: Boolean,
+        onProgress: (String, Float) -> Unit
+    ) = withContext(Dispatchers.IO) {
+        when (preview.kind) {
+            Kind.FOLDER -> importFromFolder(context, preview, includeVideos, onProgress)
+            Kind.ZIP -> {
+                val uri = preview.uri ?: throw IllegalStateException("Архив недоступен")
+                importFromZip(context, uri, preview, includeVideos, onProgress)
             }
-            onProgress("", 1f)
-            AppLog.write("Imported ${wanted.size} files (${copied / 1048576} MB) into ${target.absolutePath}")
         }
+    }
+
+    private fun importFromFolder(
+        context: Context,
+        preview: ImportPreview,
+        includeVideos: Boolean,
+        onProgress: (String, Float) -> Unit
+    ) {
+        val target = dataDir(context)
+        clearImportedFiles(context)
+        target.mkdirs()
+
+        val wanted = preview.entries.filter { includeVideos || !it.relative.lowercase().endsWith(".mp4") }
+        val total = wanted.sumOf { it.size }.coerceAtLeast(1L)
+        var copied = 0L
+
+        for (entry in wanted) {
+            val file = entry.document ?: continue
+            val out = File(target, entry.relative)
+            out.parentFile?.mkdirs()
+            onProgress(entry.relative, copied.toFloat() / total)
+            context.contentResolver.openInputStream(file.uri)?.use { input ->
+                out.outputStream().use { output -> input.copyTo(output, 1 shl 16) }
+            }
+            copied += entry.size
+        }
+        onProgress("", 1f)
+        AppLog.write("Imported ${wanted.size} files (${copied / 1048576} MB) into ${target.absolutePath}")
+    }
+
+    /**
+     * One streaming pass over the zip: the picked archive is never copied to the cache first, so a 1.5 GB zip with
+     * the cutscenes in it does not need 1.5 GB of free space on top.
+     */
+    private fun importFromZip(
+        context: Context,
+        uri: Uri,
+        preview: ImportPreview,
+        includeVideos: Boolean,
+        onProgress: (String, Float) -> Unit
+    ) {
+        val target = dataDir(context)
+        clearImportedFiles(context)
+        target.mkdirs()
+
+        val wanted = preview.entries
+            .filter { includeVideos || !it.relative.lowercase().endsWith(".mp4") }
+            .associateBy { it.zipPath }
+        val total = wanted.values.sumOf { it.size }
+        val byCount = total <= 0
+        var copied = 0L
+        var done = 0
+
+        openZip(context, uri).use { zip ->
+            while (true) {
+                val entry = zip.nextEntry ?: break
+                if (entry.isDirectory) continue
+                val wantedEntry = wanted[entry.name] ?: continue
+                val out = File(target, wantedEntry.relative)
+                out.parentFile?.mkdirs()
+                val fraction = if (byCount) {
+                    (done.toFloat() / wanted.size.coerceAtLeast(1)).coerceIn(0f, 1f)
+                } else {
+                    (copied.toFloat() / total).coerceIn(0f, 1f)
+                }
+                onProgress(wantedEntry.relative, fraction)
+                out.outputStream().use { output ->
+                    val buffer = ByteArray(1 shl 16)
+                    while (true) {
+                        val read = zip.read(buffer)
+                        if (read <= 0) break
+                        output.write(buffer, 0, read)
+                        copied += read
+                    }
+                }
+                done++
+            }
+        }
+        onProgress("", 1f)
+        AppLog.write("Imported ${done} files (${copied / 1048576} MB) from a zip into ${target.absolutePath}")
+    }
+
+    private fun openZip(context: Context, uri: Uri): ZipInputStream {
+        val stream = context.contentResolver.openInputStream(uri)
+            ?: throw IllegalStateException("Не удалось открыть архив")
+        return ZipInputStream(stream.buffered(1 shl 16))
+    }
+
+    /**
+     * The prefix (ending with '/', or empty) that holds data.win: entries can sit at the archive root or inside a
+     * single folder, which is what "Compress the AVGN8bit folder" and the Steam folder zip both produce.
+     */
+    private fun zipGameRoot(names: List<String>): String? {
+        var best: String? = null
+        for (raw in names) {
+            val name = raw.replace('\\', '/').trimStart('/')
+            val lower = name.lowercase()
+            val isData = lower.endsWith("/$DATA_WIN") || lower == DATA_WIN ||
+                lower.endsWith("/$VITA_WIN") || lower == VITA_WIN
+            if (!isData) continue
+            val prefix = name.substringBeforeLast('/', "")
+            val candidate = if (prefix.isEmpty()) "" else "$prefix/"
+            if (best == null || candidate.length < best.length) best = candidate
+        }
+        return best
+    }
+
+    /** Maps a zip entry to the name it gets in the data folder, or null when the port does not need it. */
+    private fun zipRelative(root: String, raw: String): String? {
+        val name = raw.replace('\\', '/').trimStart('/')
+        if (name.startsWith("__MACOSX/") || name.contains("/__MACOSX/")) return null
+        val rest = if (root.isEmpty()) name else {
+            if (!name.startsWith(root)) return null
+            name.substring(root.length)
+        }
+        if (rest.isEmpty() || rest.endsWith("/")) return null
+        if (rest.split('/').any { it == ".." || it.isEmpty() }) return null
+        if (rest.startsWith(".")) return null
+
+        val depth = rest.count { it == '/' }
+        if (depth == 0) {
+            val lower = rest.lowercase()
+            return when {
+                lower == DATA_WIN -> DATA_WIN
+                lower == VITA_WIN -> VITA_WIN
+                FONT_EXTENSIONS.any { lower.endsWith(it) } -> rest
+                else -> null
+            }
+        }
+        val folder = rest.substringBefore('/')
+        val canonical = ROOT_DIRS.firstOrNull { it.equals(folder, ignoreCase = true) } ?: return null
+        return canonical + rest.substring(folder.length)
+    }
 
     /** Reads the game's own name out of data.win; null when the file is not a WAD we can parse. */
     fun describe(context: Context): String? {

@@ -13,17 +13,33 @@ on:
       - "runtime/**"
       - ".github/workflows/android.yml"
   workflow_dispatch:
+    inputs:
+      game_zip_url:
+        description: >-
+          Прямая ссылка на zip с файлами игры (data.win + шрифты + Lang/Attract/Cutscenes).
+          Оставьте пустым, чтобы собрать обычный APK без игры.
+        required: false
+        type: string
+      include_videos:
+        description: "Включить катсцены в APK (сильно увеличивает размер)"
+        required: false
+        type: boolean
+        default: false
   release:
     types: [published]
 
 permissions:
   contents: write
 
+env:
+  GAME_ZIP_URL: ${{ github.event.inputs.game_zip_url }}
+  INCLUDE_VIDEOS: ${{ github.event.inputs.include_videos }}
+
 jobs:
   build:
     name: Build APK
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
 
     steps:
       - name: Checkout
@@ -55,22 +71,65 @@ jobs:
           restore-keys: |
             native-${{ runner.os }}-
 
+      # The game archive is never committed to the repository: it is downloaded here, used for this build only and
+      # thrown away with the runner. See android/README.md for how to host it.
+      - name: Download the game archive
+        if: env.GAME_ZIP_URL != ''
+        run: |
+          curl -L --fail --retry 3 --retry-delay 5 -o game.zip "$GAME_ZIP_URL"
+          ls -lh game.zip
+          echo "--- contents (first 25 entries) ---"
+          unzip -l game.zip | head -30 || true
+
+      - name: Prepare bundled game
+        id: bundle
+        run: |
+          # Three ways to bring the game in: the workflow input (downloaded above), a zip committed to the checkout
+          # (only makes sense in a private fork, see android/README.md), or nothing at all.
+          zip=""
+          if [ -f game.zip ]; then
+            zip="$PWD/game.zip"
+          elif [ -f android/game.zip ]; then
+            zip="$PWD/android/game.zip"
+          fi
+          args=""
+          if [ -n "$zip" ]; then
+            args="-PbundleGame=$zip"
+            if [ "$INCLUDE_VIDEOS" = "true" ]; then
+              args="$args -PbundleVideos=true"
+            fi
+            echo "bundled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "bundled=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "args=$args" >> "$GITHUB_OUTPUT"
+          echo "Bundle args: $args"
+
       - name: Build (debug)
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon assembleDebug
+          ./gradlew --no-daemon assembleDebug ${{ steps.bundle.outputs.args }}
 
       - name: Build (release, debug-signed)
         working-directory: android
-        run: ./gradlew --no-daemon assembleRelease
+        run: ./gradlew --no-daemon assembleRelease ${{ steps.bundle.outputs.args }}
 
       - name: Collect APKs
+        env:
+          BUNDLED: ${{ steps.bundle.outputs.bundled }}
+          VIDEOS: ${{ env.INCLUDE_VIDEOS }}
         run: |
           mkdir -p artifacts
-          cp android/app/build/outputs/apk/debug/app-debug.apk artifacts/AVGN8bit-debug.apk
-          cp android/app/build/outputs/apk/release/app-release.apk artifacts/AVGN8bit-release.apk
+          suffix=""
+          if [ "$BUNDLED" = "true" ]; then
+            suffix="-bundled"
+            if [ "$VIDEOS" = "true" ]; then suffix="-bundled-videos"; fi
+          fi
+          cp android/app/build/outputs/apk/debug/app-debug.apk "artifacts/AVGN8bit-debug${suffix}.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "artifacts/AVGN8bit-release${suffix}.apk"
           ls -lh artifacts
+          du -sh artifacts
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4

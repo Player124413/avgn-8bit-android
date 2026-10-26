@@ -59,7 +59,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             AvgnTheme {
                 val context = LocalContext.current
-                var gameReady by remember { mutableStateOf(GameStorage.isReady(context)) }
+                fun ready() = GameStorage.isReady(context) || BundledGame.isAvailable(context)
+                var gameReady by remember { mutableStateOf(ready()) }
                 var screen by remember { mutableStateOf(if (gameReady) Screen.HOME else Screen.IMPORT) }
 
                 BackHandler(enabled = screen != Screen.HOME) { screen = Screen.HOME }
@@ -79,11 +80,11 @@ class MainActivity : ComponentActivity() {
                         Screen.IMPORT -> ImportScreen(
                             settings = settings,
                             onDone = {
-                                gameReady = GameStorage.isReady(context)
+                                gameReady = ready()
                                 screen = Screen.HOME
                             },
                             onBack = {
-                                gameReady = GameStorage.isReady(context)
+                                gameReady = ready()
                                 screen = Screen.HOME
                             }
                         )
@@ -166,7 +167,11 @@ private fun HomeScreen(
         ) {
             Column(Modifier.padding(18.dp)) {
                 if (imported) {
-                    Text("Файлы игры на месте", color = Color(0xFF9CCC65), fontSize = 12.sp)
+                    Text(
+                        text = if (GameStorage.isReady(context)) "Файлы игры на месте" else "Файлы игры внутри APK — распакуются при первом запуске",
+                        color = Color(0xFF9CCC65),
+                        fontSize = 12.sp
+                    )
                     Spacer(Modifier.height(4.dp))
                     Text(
                         text = gameName?.takeIf { it.isNotBlank() } ?: "AVGN 8-bit",

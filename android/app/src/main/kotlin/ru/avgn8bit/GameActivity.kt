@@ -97,8 +97,9 @@ class GameActivity : ComponentActivity(), ControlSink {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         hideSystemUi()
 
-        val imported = GameStorage.rawDataWin(this) ?: GameStorage.dataWin(this)
-        if (imported == null) {
+        val imported = GameStorage.rawDataWin(this) ?: GameStorage.patchedDataWin(this)
+        val bundled = imported == null && BundledGame.isAvailable(this)
+        if (imported == null && !bundled) {
             AppLog.write("GameActivity started without an imported game")
             finish()
             return
@@ -106,27 +107,12 @@ class GameActivity : ComponentActivity(), ControlSink {
 
         settings.applyGraphicsMarkers(GameStorage.dataDir(this))
 
-        // The Vita build of the game runs a patched data.win. Building it takes a few seconds the first time and
-        // is done in the background while the loading screen is up; if it cannot be built the retail file is used.
         val dir = GameStorage.dataDir(this)
-        if (GameDataPatcher.isPatched(dir)) {
+        if (imported != null && GameDataPatcher.isPatched(dir)) {
             startGame(File(dir, GameDataPatcher.OUTPUT_NAME))
         } else {
-            prepareText = "Готовлю файлы игры…"
-            Thread({
-                val result = GameStorage.ensurePatched(this) { fraction ->
-                    runOnUiThread { prepareProgress = fraction }
-                }
-                runOnUiThread {
-                    val patched = result.output
-                    startGame(if (result.ok && patched != null) patched else imported)
-                    prepareProgress = null
-                    if (!result.ok) {
-                        AppLog.write("Starting on the unpatched data.win: ${result.message}")
-                        prepareWarning = result.message
-                    }
-                }
-            }, "avgn-prepare").start()
+            prepareText = if (bundled) "Распаковываю встроенную игру…" else "Готовлю файлы игры…"
+            Thread(::prepareAndStart, "avgn-prepare").start()
         }
 
         setContent {
@@ -310,6 +296,56 @@ class GameActivity : ComponentActivity(), ControlSink {
                         )
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * Runs off the UI thread before the runtime starts: unpacks the game if it was baked into the APK, then builds
+     * the patched data.win. Both steps report progress on the loading screen, and a failure never blocks the game —
+     * the retail data.win is used instead.
+     */
+    private fun prepareAndStart() {
+        var base = GameStorage.rawDataWin(this) ?: GameStorage.patchedDataWin(this)
+        var unpacked = false
+
+        if (base == null) {
+            if (!BundledGame.isAvailable(this)) {
+                runOnUiThread { fatalError = "Файлы игры не найдены. Импортируйте их на главном экране." }
+                return
+            }
+            val written = BundledGame.install(
+                this,
+                onProgress = { _, fraction ->
+                    runOnUiThread {
+                        prepareText = "Распаковываю встроенную игру…"
+                        prepareProgress = fraction * 0.5f
+                    }
+                },
+                shouldStop = { isFinishing || isDestroyed }
+            )
+            unpacked = true
+            AppLog.write("Unpacked the bundled game: ${written / 1048576} MB")
+            base = GameStorage.rawDataWin(this) ?: GameStorage.patchedDataWin(this)
+            if (base == null) {
+                runOnUiThread { fatalError = "Не удалось распаковать встроенные файлы игры. Подробности в логе." }
+                return
+            }
+        }
+
+        val offset = if (unpacked) 0.5f else 0f
+        runOnUiThread { prepareText = "Собираю data_vita.win…" }
+        val result = GameStorage.ensurePatched(this) { fraction ->
+            runOnUiThread { prepareProgress = offset + fraction * (1f - offset) }
+        }
+        val patched = result.output
+        val source = base
+        runOnUiThread {
+            startGame(if (result.ok && patched != null) patched else source)
+            prepareProgress = null
+            if (!result.ok) {
+                AppLog.write("Starting on the unpatched data.win: ${result.message}")
+                prepareWarning = result.message
             }
         }
     }

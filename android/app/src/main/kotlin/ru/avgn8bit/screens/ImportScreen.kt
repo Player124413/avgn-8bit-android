@@ -1,6 +1,7 @@
 package ru.avgn8bit.screens
 
 import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
@@ -39,6 +40,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ru.avgn8bit.AppLog
 import ru.avgn8bit.AppSettings
+import ru.avgn8bit.BundledGame
 import ru.avgn8bit.GameStorage
 import ru.avgn8bit.ui.AvgnPanel
 import ru.avgn8bit.ui.AvgnRed
@@ -57,14 +59,23 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
     var patchMessage by remember { mutableStateOf<String?>(null) }
     var patchOk by remember { mutableStateOf(false) }
 
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+    val bundledAvailable = remember { BundledGame.isAvailable(context) }
+    var bundledInstalled by remember { mutableStateOf(BundledGame.isInstalled(context)) }
+    val bundledBytes = remember(bundledAvailable) { if (bundledAvailable) BundledGame.bundledBytes(context) else 0L }
+
+    val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        try {
-            context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        } catch (_: Throwable) {
-            // Some document providers do not hand out a persistable grant; the copy still works right now.
-        }
-        val inspected = GameStorage.inspect(context, uri)
+        keepPermission(context, uri)
+        val inspected = GameStorage.inspectFolder(context, uri)
+        preview = inspected
+        error = inspected.error
+    }
+
+    val zipPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        keepPermission(context, uri)
+        preview = null
+        val inspected = GameStorage.inspectZip(context, uri)
         preview = inspected
         error = inspected.error
     }
@@ -80,21 +91,99 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
             Spacer(Modifier.weight(1f))
             TextButton(onClick = onBack) { Text("Назад") }
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(10.dp))
         Text(
-            "Выберите папку, в которой лежит игра: та, что открывается по кнопке «Управление → Просмотреть локальные файлы» в Steam. " +
-                "Нужны data.win, шрифты .ttf и папки Lang, Attract, Cutscenes.",
+            "Можно выбрать папку с игрой (та, что открывается по кнопке «Управление → Просмотреть локальные " +
+                "файлы» в Steam) или zip-архив с ней. Нужны data.win, шрифты .ttf и папки Lang, Attract, Cutscenes.",
             color = Color(0xFFB0B0B8),
             fontSize = 13.sp
         )
 
-        Spacer(Modifier.height(16.dp))
-        Button(
-            onClick = { picker.launch(null) },
-            modifier = Modifier.fillMaxWidth().height(52.dp),
-            shape = RoundedCornerShape(14.dp)
-        ) {
-            Text("Выбрать папку игры", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+        if (bundledAvailable && !bundledInstalled) {
+            Spacer(Modifier.height(16.dp))
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1F2A1B)),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("Игра уже внутри APK", color = Color(0xFFA5D6A7), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Эта сборка включает файлы игры (${mb(bundledBytes)}). Их нужно один раз распаковать в " +
+                            "хранилище приложения — дальше всё как обычно.",
+                        color = Color(0xFFB9C7B4),
+                        fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Button(
+                        onClick = {
+                            busy = true
+                            error = null
+                            scope.launch {
+                                try {
+                                    val written = withContext(Dispatchers.IO) {
+                                        BundledGame.install(context) { name, fraction ->
+                                            progress = fraction
+                                            progressText = name
+                                        }
+                                    }
+                                    progressText = "Собираю data_vita.win…"
+                                    val patch = withContext(Dispatchers.IO) {
+                                        GameStorage.ensurePatched(context) { fraction ->
+                                            progress = fraction
+                                        }
+                                    }
+                                    patchOk = patch.ok
+                                    patchMessage = if (patch.ok) {
+                                        "data_vita.win собран (${mb(patch.output?.length() ?: 0L)})"
+                                    } else {
+                                        patch.message
+                                    }
+                                    bundledInstalled = true
+                                    done = true
+                                    busy = false
+                                    progress = 1f
+                                    AppLog.write("Bundled game installed: $written bytes; patch: ${patch.message}")
+                                    if (patch.ok) onDone()
+                                } catch (t: Throwable) {
+                                    busy = false
+                                    error = "Не удалось распаковать: ${t.message}"
+                                    AppLog.write("Bundled install failed: ${t.stackTraceToString()}")
+                                }
+                            }
+                        },
+                        enabled = !busy,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (busy) "Распаковываю…" else "Распаковать и играть")
+                    }
+                }
+            }
+        }
+
+        if (!bundledAvailable || bundledInstalled) {
+            Spacer(Modifier.height(16.dp))
+            Button(
+                onClick = { folderPicker.launch(null) },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Выбрать папку игры", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = { zipPicker.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream", "*/*")) },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Выбрать ZIP-архив с игрой", fontSize = 16.sp)
+            }
+            Text(
+                "Архив можно положить в «Загрузки» и выбрать здесь — распаковка идёт сразу в хранилище " +
+                    "приложения, без лишней копии.",
+                color = Color(0xFF6E6E78),
+                fontSize = 11.sp
+            )
         }
 
         error?.let {
@@ -112,14 +201,24 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(Modifier.padding(16.dp)) {
-                    Text(p.gameFolderName ?: "Игра", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "Всего: ${mb(p.totalBytes)}" + if (p.videoBytes > 0) " (видео: ${mb(p.videoBytes)})" else "",
+                        p.gameFolderName ?: "Игра",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        buildString {
+                            append("Файлов: ${p.fileCount} · ")
+                            if (p.sizesIncomplete) append("около ") else append("")
+                            append(mb(p.totalBytes))
+                            if (p.videoBytes > 0) append(" (видео: ${mb(p.videoBytes)})")
+                        },
                         color = Color(0xFF9E9EA7),
                         fontSize = 12.sp
                     )
                     Spacer(Modifier.height(6.dp))
-                    val byFolder = p.sizesByFolder.filterKeys { it != "data.win" && !it.endsWith(".ttf") }
+                    val byFolder = p.sizesByFolder.filterKeys { it != GameStorage.DATA_WIN && !it.endsWith(".ttf") }
                     byFolder.forEach { (folder, size) ->
                         Text("$folder — ${mb(size)}", color = Color(0xFFB0B0B8), fontSize = 12.sp)
                     }
@@ -146,14 +245,13 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
                             error = null
                             scope.launch {
                                 try {
-                                    GameStorage.import(context, p.entries, settings.includeVideosOnImport) { name, fraction ->
+                                    GameStorage.import(context, p, settings.includeVideosOnImport) { name, fraction ->
                                         progress = fraction * 0.8f
                                         progressText = name
                                     }
                                     // The Vita build of the game needs the patched data.win; the patch itself is a
                                     // small diff shipped inside the app, so this runs offline and adds no download.
                                     progressText = "Собираю data_vita.win…"
-                                    // Reading the 568 KB diff and writing ~170 MB: never on the UI thread.
                                     val patch = withContext(Dispatchers.IO) {
                                         GameStorage.ensurePatched(context) { fraction ->
                                             progress = 0.8f + fraction * 0.2f
@@ -181,18 +279,19 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
                     ) {
                         Text(if (busy) "Копирую…" else "Импортировать (${mb(bytesToCopy)})")
                     }
-                    if (busy) {
-                        Spacer(Modifier.height(10.dp))
-                        LinearProgressIndicator(
-                            progress = { progress },
-                            modifier = Modifier.fillMaxWidth(),
-                            color = AvgnRed
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(progressText, color = Color(0xFF9E9EA7), fontSize = 11.sp)
-                    }
                 }
             }
+        }
+
+        if (busy) {
+            Spacer(Modifier.height(12.dp))
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxWidth(),
+                color = AvgnRed
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(progressText, color = Color(0xFF9E9EA7), fontSize = 11.sp)
         }
 
         if (done && !busy) {
@@ -235,14 +334,19 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
 
         Spacer(Modifier.height(24.dp))
         Text(
-            "Порт не содержит файлов игры. Он читает данные из вашей копии, поэтому без импорта игра не запустится.",
+            "Порт не содержит файлов игры (если они не были вложены в APK при сборке). Он читает данные из вашей " +
+                "копии, поэтому без импорта игра не запустится.",
             color = Color(0xFF6E6E78),
             fontSize = 11.sp
         )
-        Spacer(Modifier.height(12.dp))
-        OutlinedButton(onClick = { picker.launch(null) }, modifier = Modifier.fillMaxWidth()) {
-            Text("Выбрать другую папку")
-        }
+    }
+}
+
+private fun keepPermission(context: android.content.Context, uri: Uri) {
+    try {
+        context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    } catch (_: Throwable) {
+        // Some providers do not hand out a persistable grant; the import still works right now.
     }
 }
 

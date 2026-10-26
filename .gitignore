@@ -14,3 +14,8 @@ android/captures/
 # OS noise
 .DS_Store
 Thumbs.db
+
+# Game files for an "everything in one APK" build: never committed
+android/game/
+android/*.zip
+android/app/src/main/assets/game/

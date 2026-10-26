@@ -30,4 +30,4 @@ Saves live in ux0:data/AVGN8bit.
 Android port (порт для Android)
 There is an Android port in `android/` — same runtime, same game files, with on-screen touch controls and a full layout editor. See `android/README.md` (in Russian) for the build steps, or grab an APK from the Actions tab.
 
-В репозитории есть порт для Android (`android/`): тот же рантайм, те же файлы игры, сенсорное управление с полноценным редактором раскладки. Как собрать — `android/README.md`; готовый APK можно взять во вкладке Actions (workflow «Android APK»).
+В репозитории есть порт для Android (`android/`): тот же рантайм, те же файлы игры, сенсорное управление с полноценным редактором раскладки. Как собрать — `android/README.md`; готовый APK можно взять во вкладке Actions (workflow «Android APK»). Игра импортируется в приложении папкой или zip-архивом, а можно собрать APK сразу с игрой внутри: `./gradlew assembleRelease -PbundleGame=game.zip` или запустить workflow с ссылкой на архив.
