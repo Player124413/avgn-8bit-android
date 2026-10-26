@@ -174,99 +174,80 @@ jobs:
           set -o pipefail
           ./gradlew --no-daemon assembleRelease ${{ steps.bundle.outputs.args }} 2>&1 | tee build-release.log
 
-      # The build logs are behind a host that some sandboxes cannot reach, so the interesting lines are republished
-      # as check-run annotations (visible from the API and in the PR/files tab).
+      # The Actions log storage is unreachable from some environments, so on failure we build one compact report
+      # (interesting lines + the tail of every Gradle log), post it as a PR comment and push it to the ci-logs
+      # branch, where it can be read with the plain git-data API.
+      - name: Build failure report
+        if: failure()
+        run: |
+          set +e
+          report=/tmp/build-report.txt
+          {
+            echo "run: ${{ github.run_id }}"
+            echo "commit: ${{ github.sha }}"
+            echo "event: ${{ github.event_name }}"
+            echo
+            for log in $(ls android/build-*.log 2>/dev/null); do
+              echo "===== $log ====="
+              echo "--- errors ---"
+              grep -aE "^(e: |w: .*\.kt)|error:|CMake Error|FAILURE:|Execution failed for task|What went wrong|Caused by:|Unresolved reference|^\.\.\. " "$log" \
+                | grep -av "warning:" | awk '!seen[$0]++' | head -200
+              echo "--- last 150 lines ---"
+              tail -150 "$log"
+              echo
+            done
+          } > "$report" 2>&1
+          wc -c "$report"
+          exit 0
+
       - name: Publish build errors as annotations
         if: failure()
         run: |
-          log=$(ls android/build-*.log 2>/dev/null | head -1)
-          if [ -z "$log" ]; then echo "No build log found"; exit 0; fi
-          grep -aE "^(e: |w: .*\.kt)|error:|CMake Error|Execution failed for task|What went wrong|Caused by:|Unresolved reference|^\.\.\. " "$log" \
-            | grep -av "warning:" | awk '!seen[$0]++' | head -40 | while IFS= read -r line; do
+          set +e
+          [ -f /tmp/build-report.txt ] || exit 0
+          awk '/^--- errors ---/{on=1;next} /^--- last/{on=0} on && NF' /tmp/build-report.txt \
+            | awk '!seen[$0]++' | head -8 | while IFS= read -r line; do
               line=${line//'%'/'%25'}
               line=${line//$'\n'/'%0A'}
               line=${line//$'\r'/''}
               echo "::error title=build::$line"
             done
+          exit 0
 
-      - name: Collect APKs
-        env:
-          BUNDLED: ${{ steps.bundle.outputs.bundled }}
-          VIDEOS: ${{ env.INCLUDE_VIDEOS }}
-        run: |
-          mkdir -p artifacts
-          suffix=""
-          if [ "$BUNDLED" = "true" ]; then
-            suffix="-bundled"
-            if [ "$VIDEOS" = "true" ]; then suffix="-bundled-videos"; fi
-          fi
-          cp android/app/build/outputs/apk/debug/app-debug.apk "artifacts/AVGN8bit-debug${suffix}.apk"
-          cp android/app/build/outputs/apk/release/app-release.apk "artifacts/AVGN8bit-release${suffix}.apk"
-          ls -lh artifacts
-          du -sh artifacts
-
-      - name: Upload APKs
-        uses: actions/upload-artifact@v4
-        with:
-          name: AVGN8bit-apk
-          path: artifacts/*.apk
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Attach APKs to the release
-        if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: artifacts/*.apk
-
-      # Reading Actions logs requires a host some sandboxes cannot reach; a PR comment is readable everywhere.
       - name: Post the build log to the pull request
         if: failure() && github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -uo pipefail
-          log=$(ls android/build-*.log 2>/dev/null | head -1)
-          if [ -z "$log" ]; then echo "no log"; exit 0; fi
+          set +e
+          [ -f /tmp/build-report.txt ] || { echo "no report"; exit 0; }
           {
             echo "### Сборка не прошла"
             echo ""
-            echo "**Все ошибки компилятора:**"
             echo '```text'
-            grep -a -E "^e: |error:|CMake Error|FAILURE:|Execution failed for task|What went wrong|Caused by:" "$log" | head -150
-            echo '```'
+            head -c 52000 /tmp/build-report.txt
             echo ""
-            echo "**Контекст вокруг упавшей задачи:**"
-            echo '```text'
-            grep -a -n -B5 -A25 "> Task :app:compile.*Kotlin" "$log" | head -120
             echo '```'
           } > /tmp/comment.md
-          wc -c /tmp/comment.md
           gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/comment.md || true
+          exit 0
 
-      # Temporary debugging aid: put the interesting part of the build log on a branch, where it can be read with
-      # the API even from an environment that cannot open the Actions log storage.
       - name: Publish the build log to a branch
         if: failure()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -uo pipefail
-          log=$(ls android/build-*.log 2>/dev/null | head -1)
-          if [ -z "$log" ]; then echo "no log"; exit 0; fi
+          set +e
+          [ -f /tmp/build-report.txt ] || { echo "no report"; exit 0; }
           mkdir -p .ci-logs
-          {
-            echo "run: ${{ github.run_id }}"
-            echo "commit: ${{ github.sha }}"
-            echo
-            grep -a -n -E "^e: |error:|warning: unable|CMake Error|FAILURE:|Execution failed|What went wrong|Caused by:|^> Task " "$log" | tail -300
-          } > ".ci-logs/build-${{ github.run_id }}.txt"
+          cp /tmp/build-report.txt ".ci-logs/build-${{ github.run_id }}.txt"
           git config user.name "ci-bot"
           git config user.email "ci-bot@users.noreply.github.com"
           git checkout -B ci-logs
           git add -f .ci-logs
-          git commit -m "CI log for run ${{ github.run_id }}"
-          git push -f origin ci-logs
+          git commit -m "CI log for run ${{ github.run_id }}" || true
+          git push -f origin ci-logs || true
+          exit 0
 
       - name: Upload build logs on failure
         if: failure()
@@ -274,6 +255,7 @@ jobs:
         with:
           name: build-logs
           path: |
+            android/build-*.log
             android/**/build/outputs/logs/**
             android/**/.cxx/**/*.log
           if-no-files-found: ignore
