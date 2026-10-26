@@ -46,4 +46,10 @@ VideoDecoder* VideoDecoder_createBackend(void);
 
 void Video_executePendingAsyncEvents(Runner* runner);
 
+// App lifecycle (Android: the runner loop is parked and the audio device is suspended while the app is in the
+// background). A backend that plays its own audio, like MediaPlayer, keeps going on its own, so it is paused here.
+// Only a video this paused is resumed, so a cutscene the game paused itself stays paused.
+void Video_pauseForBackground(void);
+void Video_resumeForForeground(void);
+
 #endif /* _BS_VIDEO_H_ */

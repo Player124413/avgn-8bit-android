@@ -19,6 +19,7 @@
 
 #include "log.h"
 #include "android_jni.h"
+#include "video.h"
 
 #define LOG_TAG "Butterscotch"
 
@@ -847,6 +848,8 @@ JNIEXPORT void JNICALL JNI_FN(suspendAudio)(MAYBE_UNUSED JNIEnv* env, MAYBE_UNUS
         return;
 
     gRunner->audioSystem->vtable->suspend(gRunner->audioSystem);
+    // A decoder that plays its own audio (MediaPlayer) would keep going: the parked render loop would not pause it.
+    Video_pauseForBackground();
 }
 
 // Resume the audio backend after a suspendAudio (the app came back to the foreground)
@@ -855,6 +858,7 @@ JNIEXPORT void JNICALL JNI_FN(resumeAudio)(MAYBE_UNUSED JNIEnv* env, MAYBE_UNUSE
         return;
 
     gRunner->audioSystem->vtable->resume(gRunner->audioSystem);
+    Video_resumeForForeground();
 }
 
 JNIEXPORT void JNICALL JNI_FN(stopRunner)(MAYBE_UNUSED JNIEnv* env, MAYBE_UNUSED jclass cls) {

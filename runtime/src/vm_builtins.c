@@ -23434,6 +23434,26 @@ static void videoAudioReplay(Runner* runner) {
     }
 }
 
+// Set while Video_pauseForBackground() is what paused the decoder (see video.h).
+static bool videoPausedForBackground = false;
+
+void Video_pauseForBackground(void) {
+    if (videoDecoder == nullptr || videoDecoder->vtable->pause == nullptr) return;
+    if (videoDecoder->vtable->isPaused != nullptr && videoDecoder->vtable->isPaused(videoDecoder)) return;
+    if (!videoDecoder->vtable->isRunning(videoDecoder)) return;
+    videoDecoder->vtable->pause(videoDecoder);
+    videoPausedForBackground = true;
+    printf("Video: paused while the app is in the background\n");
+}
+
+void Video_resumeForForeground(void) {
+    if (!videoPausedForBackground) return;
+    videoPausedForBackground = false;
+    if (videoDecoder == nullptr || videoDecoder->vtable->resume == nullptr) return;
+    videoDecoder->vtable->resume(videoDecoder);
+    printf("Video: resumed, the app is back in the foreground\n");
+}
+
 static void videoFreeSurface(Runner* runner) {
     if (videoSurfId >= 0 && runner != nullptr && runner->renderer != nullptr)
         runner->renderer->vtable->surfaceFree(runner->renderer, videoSurfId);
@@ -23454,6 +23474,7 @@ static void video_cleanup(Runner* runner) {
     video_w = 0;
     video_h = 0;
     videoRunnin = false;
+    videoPausedForBackground = false;
     pendingVideoEventCount = 0;
 }
 
