@@ -56,27 +56,64 @@ jobs:
       # occasionally no SDK at all. Both cases are handled here without third-party setup actions.
       - name: Android SDK, NDK and CMake
         run: |
-          set -euo pipefail
+          set -uo pipefail
+
+          annotate() {
+            tail -n 15 "$1" 2>/dev/null | while IFS= read -r line; do
+              line=${line//'%'/'%25'}
+              echo "::error title=$2::${line}"
+            done
+          }
+
           SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
           if [ -z "$SDK" ] || [ ! -d "$SDK" ]; then SDK="$HOME/android-sdk"; fi
           mkdir -p "$SDK/cmdline-tools"
+
           if [ ! -x "$SDK/cmdline-tools/latest/bin/sdkmanager" ]; then
             echo "cmdline-tools not found in $SDK, downloading them"
-            curl -fsSL -o /tmp/cmdline-tools.zip \
-              https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+            if ! curl -fsSL --retry 3 -o /tmp/cmdline-tools.zip \
+                https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip 2>/tmp/curl.log; then
+              annotate /tmp/curl.log "cmdline-tools download"
+              exit 1
+            fi
             rm -rf "$SDK/cmdline-tools/latest" "$SDK/cmdline-tools/cmdline-tools"
             unzip -q /tmp/cmdline-tools.zip -d "$SDK/cmdline-tools"
             mv "$SDK/cmdline-tools/cmdline-tools" "$SDK/cmdline-tools/latest"
           fi
+
           echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
           echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
           echo "$SDK/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
           echo "$SDK/platform-tools" >> "$GITHUB_PATH"
           export PATH="$SDK/cmdline-tools/latest/bin:$PATH"
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0" \
-            "ndk;27.0.12077973" "cmake;3.22.1"
-          sdkmanager --list_installed | sed -n '1,40p'
+
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+
+          attempt=1
+          while :; do
+            if sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0" \
+                 "ndk;27.0.12077973" "cmake;3.22.1" > /tmp/sdk-install.log 2>&1; then
+              break
+            fi
+            if [ "$attempt" -ge 3 ]; then
+              annotate /tmp/sdk-install.log "sdkmanager"
+              exit 1
+            fi
+            echo "sdkmanager attempt $attempt failed, retrying"
+            attempt=$((attempt + 1))
+            sleep 15
+          done
+
+          echo "SDK: $SDK"
+          sdkmanager --list_installed 2>/dev/null | sed -n '1,30p'
+
+      - name: Cache NDK and CMake
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/local/lib/android/sdk/ndk/27.0.12077973
+            /usr/local/lib/android/sdk/cmake/3.22.1
+          key: sdk-ndk-27.0.12077973-cmake-3.22.1
 
       - name: Cache native build
         uses: actions/cache@v4
