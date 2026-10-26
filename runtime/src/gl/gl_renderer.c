@@ -3567,8 +3567,16 @@ static void glBeginFrame(Renderer* renderer, int32_t gameW, int32_t gameH, int32
     // only re-sent when the game asks for a change, so a leak would stay for the rest of the session: with blending
     // left off, every sprite draws its transparent texels (black in the page) over the background. One query per
     // frame puts the cache back in charge.
-    if ((glIsEnabled(GL_BLEND) == GL_TRUE) != gl->blendEnable) {
+    static int32_t loggedLeaks = 0;
+    GLboolean driverBlend = glIsEnabled(GL_BLEND);
+    if ((driverBlend == GL_TRUE) != gl->blendEnable) {
         if (gl->blendEnable) glEnable(GL_BLEND); else glDisable(GL_BLEND);
+        // Only the first few: this line is a bug report, not a per-frame message.
+        if (loggedLeaks < 3) {
+            loggedLeaks++;
+            logWarn("GL: the driver had blending %s while the renderer expected %s; state restored\n",
+                    driverBlend == GL_TRUE ? "on" : "off", gl->blendEnable ? "on" : "off");
+        }
     }
 #endif
 }

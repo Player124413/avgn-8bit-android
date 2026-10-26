@@ -348,17 +348,27 @@ class GameActivity : ComponentActivity(), ControlSink {
         val patched = result.output
         val source = base
         runOnUiThread {
-            startGame(if (result.ok && patched != null) patched else source)
-            prepareProgress = null
+            // startGame may set a warning of its own (a missing Lang folder), so its message wins over this one.
             if (!result.ok) {
                 AppLog.write("Starting on the unpatched data.win: ${result.message}")
                 prepareWarning = result.message
             }
+            startGame(if (result.ok && patched != null) patched else source)
+            prepareProgress = null
         }
     }
 
     private fun startGame(dataWin: File) {
         AppLog.write("Starting the game: ${dataWin.absolutePath} (${dataWin.length()} bytes)")
+        // The game keeps its menu labels and dialogs in Lang/ next to data.win; without them there is nothing to write
+        // into a menu, so a screen like the options list comes out empty. Say so in the log (and on screen) instead of
+        // leaving it a mystery.
+        val langFiles = File(GameStorage.dataDir(this), "Lang").walkTopDown().count { it.isFile }
+        AppLog.write("Lang/: $langFiles files")
+        if (langFiles == 0) {
+            AppLog.write("Lang/ is missing or empty: the game's own text (menus, option names) will be blank")
+            prepareWarning = getString(R.string.game_lang_missing)
+        }
         lateinit var created: GameRunner
         created = GameRunner(
             assets = assets,
