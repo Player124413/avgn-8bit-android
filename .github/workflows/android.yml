@@ -190,6 +190,27 @@ jobs:
           ls -lh artifacts
           du -sh artifacts
 
+      # Cheap guard against packaging regressions (a stripped-out .so or a missing patch asset would only show up
+      # as a crash on the device otherwise).
+      - name: Sanity-check the APKs
+        env:
+          BUNDLED: ${{ steps.bundle.outputs.bundled }}
+        run: |
+          set -e
+          for apk in artifacts/*.apk; do
+            echo "== $apk ($(du -h "$apk" | cut -f1))"
+            unzip -l "$apk" > /tmp/list.txt
+            grep -E "assets/(data_vita\.patch|shaders/)" /tmp/list.txt
+            for abi in arm64-v8a armeabi-v7a; do
+              grep -q "lib/$abi/libavgn8bit.so" /tmp/list.txt || { echo "::error::$apk has no lib/$abi/libavgn8bit.so"; exit 1; }
+            done
+            grep -q "assets/data_vita.patch" /tmp/list.txt || { echo "::error::$apk has no assets/data_vita.patch"; exit 1; }
+            if [ "${BUNDLED:-false}" = "true" ]; then
+              grep -q "assets/game/" /tmp/list.txt || { echo "::error::$apk should contain the bundled game"; exit 1; }
+              grep -c "assets/game/" /tmp/list.txt | sed 's/^/bundled game entries: /'
+            fi
+          done
+
       - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
