@@ -14,7 +14,7 @@ import android.view.Surface
  *
  * The GL context is per-thread, so every call must happen on the render thread.
  *
- * Adapted from the Butterscotch Android frontend (AGPL-3.0); see NOTICE.md.
+ * Reworked from the Butterscotch Android frontend (AGPL-3.0); see android/NOTICE.md.
  */
 class GameGL {
     companion object {
