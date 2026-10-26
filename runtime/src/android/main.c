@@ -18,6 +18,7 @@
 #include "stb_ds.h"
 
 #include "log.h"
+#include "android_jni.h"
 
 #define LOG_TAG "Butterscotch"
 
@@ -79,6 +80,11 @@ static JavaVM* gJvm = nullptr;
 static jclass gNativeClass = nullptr;
 static jmethodID gOnTitleChangedMethod = nullptr;
 static jmethodID gOnGameSizeChangedMethod = nullptr;
+
+// For runtime code that talks to Java on its own (the video backend): see android_jni.h.
+JavaVM* Android_getJavaVM(void) {
+    return gJvm;
+}
 
 static JNIEnv* getEnvNoAttach(void) {
     if (gJvm == nullptr) return nullptr;

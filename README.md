@@ -23,7 +23,7 @@ This repository holds two builds of *Angry Video Game Nerd 8-bit*: the original 
 | Runtime | **Butterscotch** — свободный рантайм GameMaker (AGPL-3.0), форк из Vita-порта | тот же **Butterscotch** (тот же форк), собранный NDK/CMake под `arm64-v8a` и `armeabi-v7a` |
 | Where the sources are | `source/runtime-src.tar.gz` внутри VPK | каталог `runtime/` в этом репозитории |
 | Graphics API | **vitaGL** — реализация OpenGL (1.1/2.0) поверх GXM (LGPL-3.0), шейдеры транслируются через SceShaccCg | нативный **OpenGL ES 3.0** через EGL (`GameGL.kt`), шейдеры блита и CRT в `assets/shaders` |
-| Cutscene video | **SceAvPlayer** (аппаратный декодер, `src/video/vita/`) | видео отключено: `video_play` — заглушка (`src/video/null_video.c`) |
+| Cutscene video | **SceAvPlayer** (аппаратный декодер, `src/video/vita/`) | **MediaPlayer** — системный аппаратный декодер, кадры приходят в GL через `SurfaceTexture` (`src/video/android/video_android.c`) |
 | Sound | **OpenAL** (порт из vitasdk), `src/audio/openal/` | **miniaudio** с бэкендом **OpenSL ES**, `src/audio/miniaudio/` |
 | Input | кнопки/стики Vita + сенсорный экран | сенсорные кнопки, D-Pad и стик на экране (редактор раскладки), физический геймпад, клавиатура |
 | Game data | `ux0:data/AVGN8bit/data_vita.win`, собранный Windows-патчером на ПК | `data_vita.win` собирается **на телефоне** из вашего `data.win` и `data_vita.patch` из APK (см. `GameDataPatcher.kt`) |

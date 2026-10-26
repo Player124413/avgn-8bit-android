@@ -2,8 +2,8 @@
 #
 # The runtime sources live in ../../runtime (Butterscotch, AGPL-3.0, see runtime/LICENSE) with the
 # game-specific fixes the PS Vita port needed. Only the pieces this platform uses are compiled:
-# no SDL/desktop backends, no Vita/PS2/Switch code, no FFmpeg (video_play is a no-op on Android, see
-# src/video/null_video.c), miniaudio for sound and FreeType for font_add().
+# no SDL/desktop backends, no Vita/PS2/Switch code, no FFmpeg (cutscenes go through android.media.MediaPlayer,
+# see src/video/android/video_android.c), miniaudio for sound and FreeType for font_add().
 cmake_minimum_required(VERSION 3.22.1)
 
 project(avgn8bit C)
@@ -65,7 +65,8 @@ add_library(avgn8bit SHARED
     ${BS_AUDIO_SOURCES}
     "${BS_ROOT}/src/android/main.c"
     "${BS_ROOT}/src/android/stb_impl.c"
-    "${BS_ROOT}/src/video/null_video.c"
+    # Video playback: android.media.MediaPlayer decoded into a SurfaceTexture (the Vita build used SceAvPlayer).
+    "${BS_ROOT}/src/video/android/video_android.c"
     "${BS_ROOT}/vendor/md5/md5.c"
     "${BS_ROOT}/vendor/base64/base64.c"
     "${BS_ROOT}/vendor/miniz/miniz.c"
