@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import ru.avgn8bit.AppSettings
+import ru.avgn8bit.R
+import ru.avgn8bit.ui.str
 import ru.avgn8bit.controls.ControlEditorScreen
 import ru.avgn8bit.controls.ControlsStore
 
@@ -33,6 +35,6 @@ fun ControlsScreen(settings: AppSettings, onBack: () -> Unit) {
         onLayoutChange = { layout = it },
         onDone = onBack,
         modifier = Modifier.fillMaxSize(),
-        title = if (isPortrait) "Управление (портрет)" else "Управление (ландшафт)"
+        title = if (isPortrait) str(R.string.controls_title_portrait) else str(R.string.controls_title_landscape)
     )
 }

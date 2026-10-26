@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import ru.avgn8bit.R
 import ru.avgn8bit.screens.AboutScreen
 import ru.avgn8bit.screens.ControlsScreen
 import ru.avgn8bit.screens.ImportScreen
@@ -50,6 +51,7 @@ import ru.avgn8bit.screens.SettingsScreen
 import ru.avgn8bit.ui.AvgnPanel
 import ru.avgn8bit.ui.AvgnRed
 import ru.avgn8bit.ui.AvgnTheme
+import ru.avgn8bit.ui.str
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -131,8 +133,8 @@ private fun HomeScreen(
             val bytes = GameStorage.installedSize(context)
             when {
                 bytes <= 0 -> ""
-                bytes >= 1073741824L -> "%.1f ГБ".format(bytes / 1073741824.0)
-                else -> "%d МБ".format(bytes / 1048576)
+                bytes >= 1073741824L -> context.getString(R.string.common_size_gb, bytes / 1073741824.0)
+                else -> context.getString(R.string.common_size_mb, bytes / 1048576)
             }
         }
     }
@@ -152,7 +154,7 @@ private fun HomeScreen(
             fontFamily = FontFamily.Monospace
         )
         Text(
-            text = "8-BIT  ·  ANDROID PORT",
+            text = str(R.string.home_subtitle),
             color = Color(0xFFB0B0B8),
             fontSize = 14.sp,
             fontFamily = FontFamily.Monospace,
@@ -168,7 +170,7 @@ private fun HomeScreen(
             Column(Modifier.padding(18.dp)) {
                 if (imported) {
                     Text(
-                        text = if (GameStorage.isReady(context)) "Файлы игры на месте" else "Файлы игры внутри APK — распакуются при первом запуске",
+                        text = if (GameStorage.isReady(context)) str(R.string.home_files_in_place) else str(R.string.home_files_bundled),
                         color = Color(0xFF9CCC65),
                         fontSize = 12.sp
                     )
@@ -184,16 +186,16 @@ private fun HomeScreen(
                     }
                     settings.importedFolderName?.let { folder ->
                         Text(
-                            "Папка: $folder",
+                            str(R.string.home_folder, folder),
                             color = Color(0xFF6E6E78),
                             fontSize = 11.sp
                         )
                     }
                 } else {
-                    Text("Файлы игры ещё не импортированы", color = Color(0xFFFFB74D), fontSize = 12.sp)
+                    Text(str(R.string.home_no_files), color = Color(0xFFFFB74D), fontSize = 12.sp)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "Нужна ваша копия AVGN 8-bit из Steam: data.win, шрифты и папки Lang, Attract, Cutscenes.",
+                        str(R.string.home_need_copy),
                         color = Color(0xFFCCCCCC),
                         fontSize = 14.sp
                     )
@@ -205,25 +207,25 @@ private fun HomeScreen(
                         modifier = Modifier.fillMaxWidth().height(56.dp),
                         shape = RoundedCornerShape(14.dp)
                     ) {
-                        Text("ИГРАТЬ", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text(str(R.string.home_play), fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     }
                     Spacer(Modifier.height(10.dp))
                 }
                 OutlinedButton(onClick = onImport, modifier = Modifier.fillMaxWidth()) {
-                    Text(if (imported) "Обновить файлы игры" else "Импортировать файлы игры")
+                    Text(if (imported) str(R.string.home_update_files) else str(R.string.home_import_files))
                 }
             }
         }
 
         Spacer(Modifier.height(16.dp))
 
-        MenuButton("Сенсорное управление", "Раскладка, кнопки, размер и прозрачность", onControls)
-        MenuButton("Настройки", "Графика, ориентация, вибрация", onSettings)
-        MenuButton("О порте", "Что это, лицензии, исходники", onAbout)
+        MenuButton(str(R.string.home_controls_title), str(R.string.home_controls_subtitle), onControls)
+        MenuButton(str(R.string.home_settings_title), str(R.string.home_settings_subtitle), onSettings)
+        MenuButton(str(R.string.home_about_title), str(R.string.home_about_subtitle), onAbout)
 
         Spacer(Modifier.height(24.dp))
         Text(
-            text = "Порт работает на Butterscotch (AGPL-3.0). Файлы самой игры не входят в APK: используются те, что вы импортировали из своей копии.",
+            text = str(R.string.home_footer),
             color = Color(0xFF6E6E78),
             fontSize = 11.sp
         )
@@ -246,16 +248,16 @@ fun MenuButton(title: String, subtitle: String, onClick: () -> Unit) {
                 Text(title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 Text(subtitle, color = Color(0xFF9E9EA7), fontSize = 12.sp)
             }
-            OutlinedButton(onClick = onClick) { Text("Открыть") }
+            OutlinedButton(onClick = onClick) { Text(str(R.string.common_open)) }
         }
     }
 }
 
 @Composable
-fun LoadingRow(text: String = "Загрузка…") {
+fun LoadingRow(text: String? = null) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
         CircularProgressIndicator(modifier = Modifier.width(20.dp).height(20.dp), color = AvgnRed)
         Spacer(Modifier.width(12.dp))
-        Text(text, color = Color(0xFFB0B0B8))
+        Text(text ?: str(R.string.common_loading), color = Color(0xFFB0B0B8))
     }
 }

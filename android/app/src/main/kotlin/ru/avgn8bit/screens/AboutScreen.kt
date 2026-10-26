@@ -19,6 +19,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ru.avgn8bit.BuildConfig
+import ru.avgn8bit.R
+import ru.avgn8bit.ui.str
 
 @Composable
 fun AboutScreen(onBack: () -> Unit) {
@@ -29,47 +31,32 @@ fun AboutScreen(onBack: () -> Unit) {
             .padding(20.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("О порте", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text(str(R.string.about_title), color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = onBack) { Text("Назад") }
+            TextButton(onClick = onBack) { Text(str(R.string.common_back)) }
         }
         Spacer(Modifier.height(12.dp))
 
-        Section("AVGN 8-bit — порт для Android") {
-            Body(
-                "Любительский порт игры «Angry Video Game Nerd 8-bit» на Android. Он не содержит файлов игры: " +
-                    "вы импортируете data.win, шрифты и видео из своей копии, а приложение исполняет игру через " +
-                    "свободный движок GameMaker (Butterscotch)."
-            )
+        Section(str(R.string.about_section_port)) {
+            Body(str(R.string.about_body_port))
             Spacer(Modifier.height(8.dp))
-            Body("Версия ${BuildConfig.VERSION_NAME}. Исходники: github.com/Player124413/avgn-8bit-vita")
+            Body(str(R.string.about_version, BuildConfig.VERSION_NAME))
         }
 
-        Section("Управление") {
-            Body(
-                "Кнопки, D-Pad и стик рисуются на экране. Их можно перетаскивать, менять размер, прозрачность и " +
-                    "назначать на любую кнопку геймпада или клавишу. Раскладки для портрета и ландшафта хранятся " +
-                    "отдельно. В игре меню «Управление» открывает тот же редактор."
-            )
+        Section(str(R.string.about_section_controls)) {
+            Body(str(R.string.about_body_controls))
         }
 
-        Section("Благодарности") {
-            Body(
-                "Butterscotch — свободный рантайм GameMaker (github.com/ButterscotchRunner/Butterscotch), AGPL-3.0. " +
-                    "Шрифты FreeType (FTL). Игра и её содержимое принадлежат их правообладателям — этот порт не " +
-                    "распространяет игру и не связан с авторами."
-            )
+        Section(str(R.string.about_section_thanks)) {
+            Body(str(R.string.about_body_thanks))
         }
 
-        Section("Лицензия") {
-            Body(
-                "Код порта распространяется по AGPL-3.0, как и используемый им рантайм. Полный текст лицензии — в " +
-                    "репозитории проекта (LICENSE.runtime). Загружая файлы игры, вы используете собственную копию."
-            )
+        Section(str(R.string.about_section_license)) {
+            Body(str(R.string.about_body_license))
         }
 
         Spacer(Modifier.height(24.dp))
-        Body("Если что-то не запускается, пришлите лог: Настройки → Поделиться логом.")
+        Body(str(R.string.about_footer))
         Spacer(Modifier.height(24.dp))
     }
 }

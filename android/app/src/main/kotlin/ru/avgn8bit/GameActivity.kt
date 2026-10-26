@@ -62,6 +62,7 @@ import ru.avgn8bit.controls.ControlSink
 import ru.avgn8bit.controls.ControlsStore
 import ru.avgn8bit.controls.releaseAllControls
 import ru.avgn8bit.ui.AvgnTheme
+import ru.avgn8bit.ui.str
 
 /**
  * The game itself: a SurfaceView the runtime draws into, the touch controls on top of it, and a menu that
@@ -75,7 +76,8 @@ class GameActivity : ComponentActivity(), ControlSink {
     private var runner by mutableStateOf<GameRunner?>(null)
     private var fatalError by mutableStateOf<String?>(null)
     private var activityPaused by mutableStateOf(false)
-    private var prepareText by mutableStateOf("Загрузка…")
+    // null until the preparation thread reports a step; the loading screen shows its own default text for that
+    private var prepareText by mutableStateOf<String?>(null)
     private var prepareProgress by mutableStateOf<Float?>(null)
     private var prepareWarning by mutableStateOf<String?>(null)
     private var pendingSurface: android.view.Surface? = null
@@ -111,7 +113,7 @@ class GameActivity : ComponentActivity(), ControlSink {
         if (imported != null && GameDataPatcher.isPatched(dir)) {
             startGame(File(dir, GameDataPatcher.OUTPUT_NAME))
         } else {
-            prepareText = if (bundled) "Распаковываю встроенную игру…" else "Готовлю файлы игры…"
+            prepareText = getString(if (bundled) R.string.game_unpacking_bundled else R.string.game_preparing)
             Thread(::prepareAndStart, "avgn-prepare").start()
         }
 
@@ -213,15 +215,17 @@ class GameActivity : ComponentActivity(), ControlSink {
                             Text(
                                 text = when {
                                     runner?.gameRunning == true -> ""
-                                    progress != null -> "$prepareText ${(progress * 100).toInt()}%"
-                                    prepareText != "Загрузка…" -> prepareText
-                                    else -> "Загрузка игры…"
+                                    else -> {
+                                        val step = prepareText
+                                        val label = step ?: str(if (progress != null) R.string.common_loading else R.string.game_loading)
+                                        if (progress != null) "$label ${(progress * 100).toInt()}%" else label
+                                    }
                                 },
                                 color = Color(0xFFCCCCCC)
                             )
                             Spacer(Modifier.height(8.dp))
                             Text(
-                                "Первый запуск может занять до минуты",
+                                str(R.string.game_first_launch),
                                 color = Color(0xFF888888),
                                 fontSize = 12.sp
                             )
@@ -257,7 +261,7 @@ class GameActivity : ComponentActivity(), ControlSink {
                             onLayoutChange = { layout = it },
                             onDone = { editing = false },
                             modifier = Modifier.fillMaxSize(),
-                            title = if (isPortrait) "Управление (портрет)" else "Управление (ландшафт)"
+                            title = if (isPortrait) str(R.string.controls_title_portrait) else str(R.string.controls_title_landscape)
                         )
                     }
 
@@ -285,13 +289,13 @@ class GameActivity : ComponentActivity(), ControlSink {
                     fatalError?.let { message ->
                         AlertDialog(
                             onDismissRequest = { },
-                            title = { Text("Игра не запустилась") },
+                            title = { Text(str(R.string.game_failed_title)) },
                             text = { Text(message) },
                             confirmButton = {
                                 TextButton(onClick = {
                                     fatalError = null
                                     finish()
-                                }) { Text("Выход") }
+                                }) { Text(str(R.string.game_exit)) }
                             }
                         )
                     }
@@ -311,14 +315,14 @@ class GameActivity : ComponentActivity(), ControlSink {
 
         if (base == null) {
             if (!BundledGame.isAvailable(this)) {
-                runOnUiThread { fatalError = "Файлы игры не найдены. Импортируйте их на главном экране." }
+                runOnUiThread { fatalError = getString(R.string.game_files_missing) }
                 return
             }
             val written = BundledGame.install(
                 this,
                 onProgress = { _, fraction ->
                     runOnUiThread {
-                        prepareText = "Распаковываю встроенную игру…"
+                        prepareText = getString(R.string.game_unpacking_bundled)
                         prepareProgress = fraction * 0.5f
                     }
                 },
@@ -328,13 +332,13 @@ class GameActivity : ComponentActivity(), ControlSink {
             AppLog.write("Unpacked the bundled game: ${written / 1048576} MB")
             base = GameStorage.rawDataWin(this) ?: GameStorage.patchedDataWin(this)
             if (base == null) {
-                runOnUiThread { fatalError = "Не удалось распаковать встроенные файлы игры. Подробности в логе." }
+                runOnUiThread { fatalError = getString(R.string.game_unpack_failed) }
                 return
             }
         }
 
         val offset = if (unpacked) 0.5f else 0f
-        runOnUiThread { prepareText = "Собираю data_vita.win…" }
+        runOnUiThread { prepareText = getString(R.string.import_patching) }
         val result = GameStorage.ensurePatched(this) { fraction ->
             runOnUiThread { prepareProgress = offset + fraction * (1f - offset) }
         }
@@ -367,9 +371,7 @@ class GameActivity : ComponentActivity(), ControlSink {
                         finish()
                     } else {
                         AppLog.write("The runner could not start")
-                        fatalError = "Игра не запустилась. Подробности в логе (меню «Логи»).\n\n" +
-                            "Обычно это значит, что файлы игры не подходят этой версии порта: нужны data.win, " +
-                            "шрифты .ttf и папки Lang, Attract, Cutscenes из Steam-версии игры."
+                        fatalError = getString(R.string.game_runner_failed)
                     }
                 }
             }
@@ -546,18 +548,21 @@ private fun InGameMenu(
 ) {
     AlertDialog(
         onDismissRequest = onResume,
-        title = { Text("Пауза") },
+        title = { Text(str(R.string.pause_title)) },
         text = {
             Column {
-                MenuRow("Продолжить игру", onResume)
-                MenuRow("Настроить управление", onEditControls)
-                MenuRow(if (settings.controlsVisible) "Скрыть кнопки" else "Показать кнопки", onToggleControls)
-                MenuRow("Графика и звук", onQuickSettings)
-                MenuRow("Логи", onLogs)
-                MenuRow("Выйти из игры", onQuit, danger = true)
+                MenuRow(str(R.string.pause_resume), onResume)
+                MenuRow(str(R.string.pause_edit_controls), onEditControls)
+                MenuRow(
+                    if (settings.controlsVisible) str(R.string.pause_hide_controls) else str(R.string.pause_show_controls),
+                    onToggleControls
+                )
+                MenuRow(str(R.string.pause_quick_settings), onQuickSettings)
+                MenuRow(str(R.string.pause_logs), onLogs)
+                MenuRow(str(R.string.pause_quit), onQuit, danger = true)
             }
         },
-        confirmButton = { TextButton(onClick = onResume) { Text("Продолжить") } }
+        confirmButton = { TextButton(onClick = onResume) { Text(str(R.string.pause_continue)) } }
     )
 }
 
@@ -578,45 +583,45 @@ private fun MenuRow(text: String, onClick: () -> Unit, danger: Boolean = false) 
 fun QuickSettingsDialog(settings: AppSettings, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Графика") },
+        title = { Text(str(R.string.settings_section_graphics)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                Text("Фильтр", color = Color(0xFFB0B0B8), fontSize = 12.sp)
+                Text(str(R.string.settings_filter), color = Color(0xFFB0B0B8), fontSize = 12.sp)
                 Row {
                     FilterChip(
                         selected = settings.filter == VideoFilter.SHARP,
                         onClick = { settings.filter = VideoFilter.SHARP },
-                        label = { Text("Пиксели") },
+                        label = { Text(str(R.string.filter_sharp)) },
                         modifier = Modifier.padding(end = 6.dp)
                     )
                     FilterChip(
                         selected = settings.filter == VideoFilter.SMOOTH,
                         onClick = { settings.filter = VideoFilter.SMOOTH },
-                        label = { Text("Сглаживание") },
+                        label = { Text(str(R.string.filter_smooth)) },
                         modifier = Modifier.padding(end = 6.dp)
                     )
                     FilterChip(
                         selected = settings.filter == VideoFilter.CRT,
                         onClick = { settings.filter = VideoFilter.CRT },
-                        label = { Text("CRT") }
+                        label = { Text(str(R.string.filter_crt)) }
                     )
                 }
                 Spacer(Modifier.height(8.dp))
-                SettingSwitch("Целочисленное масштабирование", settings.integerScaling) { settings.integerScaling = it }
-                SettingSwitch("Широкий экран (больше видно)", settings.widescreen) { settings.widescreen = it }
-                SettingSwitch("Счётчик FPS", settings.showFps) { settings.showFps = it }
-                SettingSwitch("Вибрация кнопок", settings.haptics) {
+                SettingSwitch(str(R.string.settings_integer_scaling), settings.integerScaling) { settings.integerScaling = it }
+                SettingSwitch(str(R.string.settings_widescreen_short), settings.widescreen) { settings.widescreen = it }
+                SettingSwitch(str(R.string.settings_fps), settings.showFps) { settings.showFps = it }
+                SettingSwitch(str(R.string.settings_haptics_short), settings.haptics) {
                     settings.haptics = it
                     Haptics.configure(it, settings.hapticsStrength)
                 }
                 Text(
-                    "CRT рисует поверх игры дополнительный эффект телевизора. Игра уже рисует свой — включайте, если нравится.",
+                    str(R.string.quick_crt_hint),
                     color = Color(0xFF888888),
                     fontSize = 11.sp
                 )
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Закрыть") } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text(str(R.string.common_close)) } }
     )
 }
 
@@ -635,32 +640,37 @@ fun SettingSwitch(label: String, checked: Boolean, onChange: (Boolean) -> Unit) 
 private fun LogDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
     var tab by remember { mutableStateOf(0) }
-    val appLog = remember { AppLog.read() }
-    val nativeLog = remember {
+    // Read outside remember(): its calculation must not call into composition.
+    val emptyLog = str(R.string.log_empty)
+    val nothingYet = str(R.string.log_nothing_yet)
+    val cutOff = str(R.string.log_truncated)
+    val shareTitle = str(R.string.common_share_log)
+    val appLog = remember(emptyLog) { AppLog.read().ifEmpty { emptyLog } }
+    val nativeLog = remember(nothingYet, cutOff) {
         val file = GameStorage.nativeLogFile(context)
-        if (!file.isFile) "Рантайм ещё ничего не записал." else {
+        if (!file.isFile) nothingYet else {
             // A session can write megabytes of engine warnings; the end is what matters.
             val text = file.readText()
-            if (text.length > 120_000) "…(начало обрезано)…\n" + text.takeLast(120_000) else text
+            if (text.length > 120_000) cutOff + text.takeLast(120_000) else text
         }
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Лог") },
+        title = { Text(str(R.string.log_title)) },
         text = {
             Column {
                 Row {
                     FilterChip(
                         selected = tab == 0,
                         onClick = { tab = 0 },
-                        label = { Text("Приложение") },
+                        label = { Text(str(R.string.log_tab_app)) },
                         modifier = Modifier.padding(end = 6.dp)
                     )
                     FilterChip(
                         selected = tab == 1,
                         onClick = { tab = 1 },
-                        label = { Text("Игра") }
+                        label = { Text(str(R.string.log_tab_game)) }
                     )
                 }
                 Spacer(Modifier.height(8.dp))
@@ -680,11 +690,11 @@ private fun LogDialog(onDismiss: () -> Unit) {
                         type = "text/plain"
                         putExtra(Intent.EXTRA_TEXT, appLog + "\n\n===== native =====\n" + nativeLog)
                     }
-                    context.startActivity(Intent.createChooser(intent, "Поделиться логом"))
+                    context.startActivity(Intent.createChooser(intent, shareTitle))
                 } catch (_: Throwable) {
                 }
-            }) { Text("Поделиться") }
+            }) { Text(str(R.string.common_share)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Закрыть") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(str(R.string.common_close)) } }
     )
 }

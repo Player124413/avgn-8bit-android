@@ -51,7 +51,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.sp
+import androidx.annotation.StringRes
+import ru.avgn8bit.R
+import ru.avgn8bit.ui.str
 
 /**
  * The layout editor: drag anything anywhere, then tune it in the panel at the bottom.
@@ -65,8 +69,9 @@ fun ControlEditorScreen(
     onLayoutChange: (ControlLayout) -> Unit,
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
-    title: String = "Управление"
+    title: String? = null
 ) {
+    val titleText = title ?: str(R.string.editor_title)
     var selectedId by remember { mutableStateOf<String?>(null) }
     var panelCollapsed by remember { mutableStateOf(false) }
     var presetMenu by remember { mutableStateOf(false) }
@@ -99,32 +104,32 @@ fun ControlEditorScreen(
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+            Text(titleText, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
             Spacer(Modifier.width(12.dp))
-            Text("${layout.elements.size} элем.", color = Color(0xFF9E9EA7), fontSize = 12.sp)
+            Text(str(R.string.editor_elements_count, layout.elements.size), color = Color(0xFF9E9EA7), fontSize = 12.sp)
             Spacer(Modifier.weight(1f))
             Box {
                 OutlinedButton(onClick = { presetMenu = true }) {
-                    Text("Пресет")
+                    Text(str(R.string.editor_preset))
                     Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
                 }
                 DropdownMenu(expanded = presetMenu, onDismissRequest = { presetMenu = false }) {
-                    DropdownMenuItem(text = { Text("AVGN — 3 кнопки") }, onClick = {
+                    DropdownMenuItem(text = { Text(str(R.string.preset_avgn)) }, onClick = {
                         onLayoutChange(Presets.avgnThreeButtons()); selectedId = null; presetMenu = false
                     })
-                    DropdownMenuItem(text = { Text("NES — 2 кнопки") }, onClick = {
+                    DropdownMenuItem(text = { Text(str(R.string.preset_nes)) }, onClick = {
                         onLayoutChange(Presets.nes()); selectedId = null; presetMenu = false
                     })
-                    DropdownMenuItem(text = { Text("Стик + кнопки") }, onClick = {
+                    DropdownMenuItem(text = { Text(str(R.string.preset_stick)) }, onClick = {
                         onLayoutChange(Presets.stickLayout()); selectedId = null; presetMenu = false
                     })
-                    DropdownMenuItem(text = { Text("Пустая раскладка") }, onClick = {
+                    DropdownMenuItem(text = { Text(str(R.string.preset_empty)) }, onClick = {
                         onLayoutChange(Presets.empty()); selectedId = null; presetMenu = false
                     })
                 }
             }
             Spacer(Modifier.width(8.dp))
-            Button(onClick = onDone) { Text("Готово") }
+            Button(onClick = onDone) { Text(str(R.string.common_done)) }
         }
 
         // Bottom panel
@@ -137,10 +142,10 @@ fun ControlEditorScreen(
         ) {
             if (panelCollapsed) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Панель скрыта — двигать элементы можно и так", color = Color(0xFFB0B0B8), fontSize = 12.sp)
+                    Text(str(R.string.editor_panel_hidden), color = Color(0xFFB0B0B8), fontSize = 12.sp)
                     Spacer(Modifier.weight(1f))
                     IconButton(onClick = { panelCollapsed = false }) {
-                        Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Развернуть", tint = Color.White)
+                        Icon(Icons.Filled.KeyboardArrowUp, contentDescription = str(R.string.editor_expand), tint = Color.White)
                     }
                 }
             } else {
@@ -149,22 +154,22 @@ fun ControlEditorScreen(
                         OutlinedButton(onClick = { addMenu = true }) {
                             Icon(Icons.Filled.Add, contentDescription = null)
                             Spacer(Modifier.width(4.dp))
-                            Text("Добавить")
+                            Text(str(R.string.editor_add))
                         }
                         DropdownMenu(expanded = addMenu, onDismissRequest = { addMenu = false }) {
-                            DropdownMenuItem(text = { Text("Кнопка") }, onClick = {
+                            DropdownMenuItem(text = { Text(str(R.string.editor_add_button)) }, onClick = {
                                 val element = ControlElement.button(0.8f, 0.8f, 0.18f, "A", listOf(Binding.pad(0)))
                                 onLayoutChange(layout.copy(elements = layout.elements + element))
                                 selectedId = element.id
                                 addMenu = false
                             })
-                            DropdownMenuItem(text = { Text("D-Pad") }, onClick = {
+                            DropdownMenuItem(text = { Text(str(R.string.editor_add_dpad)) }, onClick = {
                                 val element = ControlElement.dpad(0.2f, 0.75f, 0.42f)
                                 onLayoutChange(layout.copy(elements = layout.elements + element))
                                 selectedId = element.id
                                 addMenu = false
                             })
-                            DropdownMenuItem(text = { Text("Стик") }, onClick = {
+                            DropdownMenuItem(text = { Text(str(R.string.editor_add_stick)) }, onClick = {
                                 val element = ControlElement.stick(0.2f, 0.75f, 0.46f)
                                 onLayoutChange(layout.copy(elements = layout.elements + element))
                                 selectedId = element.id
@@ -174,13 +179,13 @@ fun ControlEditorScreen(
                     }
                     Spacer(Modifier.width(12.dp))
                     Text(
-                        text = selected?.let { describeElement(it) } ?: "Выберите элемент или добавьте новый",
+                        text = selected?.let { describeElement(it) } ?: str(R.string.editor_pick_element),
                         color = Color(0xFFB0B0B8),
                         fontSize = 12.sp,
                         modifier = Modifier.weight(1f)
                     )
                     IconButton(onClick = { panelCollapsed = true }) {
-                        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Свернуть", tint = Color.White)
+                        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = str(R.string.editor_collapse), tint = Color.White)
                     }
                 }
 
@@ -214,10 +219,11 @@ fun ControlEditorScreen(
     }
 }
 
+@Composable
 private fun describeElement(element: ControlElement): String = when (element.type) {
-    "dpad" -> "D-Pad"
-    "stick" -> "Стик"
-    else -> "Кнопка «${element.label.ifEmpty { "?" }}»"
+    "dpad" -> str(R.string.editor_add_dpad)
+    "stick" -> str(R.string.editor_element_stick)
+    else -> str(R.string.editor_element_button, element.label.ifEmpty { "?" })
 }
 
 @Composable
@@ -234,14 +240,14 @@ private fun ElementProperties(
                 OutlinedTextField(
                     value = element.label,
                     onValueChange = { if (it.length <= 6) onChange(element.copy(label = it)) },
-                    label = { Text("Надпись") },
+                    label = { Text(str(R.string.editor_label_field)) },
                     singleLine = true,
                     modifier = Modifier.width(150.dp)
                 )
                 Spacer(Modifier.width(8.dp))
             }
             Column(Modifier.weight(1f)) {
-                Text("Размер", color = Color(0xFFB0B0B8), fontSize = 11.sp)
+                Text(str(R.string.editor_size), color = Color(0xFFB0B0B8), fontSize = 11.sp)
                 Slider(
                     value = element.size,
                     onValueChange = { onChange(element.copy(size = it)) },
@@ -249,7 +255,7 @@ private fun ElementProperties(
                 )
             }
             Column(Modifier.weight(1f)) {
-                Text("Прозрачность", color = Color(0xFFB0B0B8), fontSize = 11.sp)
+                Text(str(R.string.editor_opacity), color = Color(0xFFB0B0B8), fontSize = 11.sp)
                 Slider(
                     value = element.opacity,
                     onValueChange = { onChange(element.copy(opacity = it)) },
@@ -259,17 +265,21 @@ private fun ElementProperties(
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedButton(onClick = onEditBindings) { Text("Кнопки и клавиши") }
+            OutlinedButton(onClick = onEditBindings) { Text(str(R.string.editor_bindings)) }
             Spacer(Modifier.width(8.dp))
             if (element.type != "button") {
-                Text("Оси стика", color = Color(0xFFB0B0B8), fontSize = 12.sp)
+                Text(str(R.string.editor_emit_axes), color = Color(0xFFB0B0B8), fontSize = 12.sp)
                 Spacer(Modifier.width(6.dp))
                 Switch(checked = element.emitAxes, onCheckedChange = { onChange(element.copy(emitAxes = it)) })
                 Spacer(Modifier.width(8.dp))
             }
             Row(Modifier.horizontalScroll(rememberScrollState())) {
                 if (element.type == "button") {
-                    for (style in listOf("circle" to "Круг", "rounded" to "Скругление", "square" to "Квадрат")) {
+                    for (style in listOf(
+                        "circle" to str(R.string.style_circle),
+                        "rounded" to str(R.string.style_rounded),
+                        "square" to str(R.string.style_square)
+                    )) {
                         FilterChip(
                             selected = element.style == style.first,
                             onClick = { onChange(element.copy(style = style.first)) },
@@ -280,8 +290,8 @@ private fun ElementProperties(
                 }
             }
             Spacer(Modifier.weight(1f))
-            IconButton(onClick = onDuplicate) { Icon(Icons.Filled.ContentCopy, contentDescription = "Дублировать", tint = Color.White) }
-            IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = "Удалить", tint = Color(0xFFEF9A9A)) }
+            IconButton(onClick = onDuplicate) { Icon(Icons.Filled.ContentCopy, contentDescription = str(R.string.editor_duplicate), tint = Color.White) }
+            IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = str(R.string.editor_delete), tint = Color(0xFFEF9A9A)) }
         }
     }
 }
@@ -292,12 +302,12 @@ private object NoopSink : ControlSink {
     override fun axis(axis: Int, value: Float) = Unit
 }
 
-private enum class BindingTarget(val label: String) {
-    PRIMARY("Кнопка"),
-    UP("Вверх"),
-    DOWN("Вниз"),
-    LEFT("Влево"),
-    RIGHT("Вправо")
+private enum class BindingTarget(@StringRes val labelRes: Int) {
+    PRIMARY(R.string.bindings_target_primary),
+    UP(R.string.bindings_target_up),
+    DOWN(R.string.bindings_target_down),
+    LEFT(R.string.bindings_target_left),
+    RIGHT(R.string.bindings_target_right)
 }
 
 @Composable
@@ -335,8 +345,8 @@ private fun BindingDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Что нажимает «${describeElement(element)}»") },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Готово") } },
+        title = { Text(str(R.string.bindings_title, describeElement(element))) },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(str(R.string.common_done)) } },
         text = {
             Column {
                 if (element.type != "button") {
@@ -345,7 +355,7 @@ private fun BindingDialog(
                             FilterChip(
                                 selected = target == entry,
                                 onClick = { target = entry },
-                                label = { Text(entry.label) },
+                                label = { Text(str(entry.labelRes)) },
                                 modifier = Modifier.padding(end = 6.dp)
                             )
                         }
@@ -356,14 +366,14 @@ private fun BindingDialog(
                     FilterChip(
                         selected = tab == 0,
                         onClick = { tab = 0 },
-                        label = { Text("Геймпад") },
+                        label = { Text(str(R.string.bindings_gamepad)) },
                         modifier = Modifier.padding(end = 6.dp)
                     )
-                    FilterChip(selected = tab == 1, onClick = { tab = 1 }, label = { Text("Клавиатура") })
+                    FilterChip(selected = tab == 1, onClick = { tab = 1 }, label = { Text(str(R.string.bindings_keyboard)) })
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Можно отметить несколько — тогда кнопка отправит всё сразу.",
+                    str(R.string.bindings_hint),
                     color = Color(0xFF9E9EA7),
                     fontSize = 11.sp
                 )
@@ -373,7 +383,7 @@ private fun BindingDialog(
                         items(PadButton.entries) { button ->
                             val binding = Binding.pad(button.index)
                             BindingRow(
-                                label = button.label,
+                                label = str(button.labelRes),
                                 checked = list.contains(binding),
                                 onClick = { toggle(binding) }
                             )
@@ -382,12 +392,12 @@ private fun BindingDialog(
                             val negative = Binding.axis(axis, -1)
                             val positive = Binding.axis(axis, 1)
                             BindingRow(
-                                label = "Ось $axis — в минус",
+                                label = str(R.string.bindings_axis_minus, axis),
                                 checked = list.contains(negative),
                                 onClick = { toggle(negative) }
                             )
                             BindingRow(
-                                label = "Ось $axis — в плюс",
+                                label = str(R.string.bindings_axis_plus, axis),
                                 checked = list.contains(positive),
                                 onClick = { toggle(positive) }
                             )
@@ -398,7 +408,7 @@ private fun BindingDialog(
                         items(KeyOption.all) { key ->
                             val binding = Binding.key(key.code)
                             BindingRow(
-                                label = "${key.label}  (${key.code})",
+                                label = str(R.string.bindings_key_entry, keyTitle(key), key.code),
                                 checked = list.contains(binding),
                                 onClick = { toggle(binding) }
                             )
@@ -432,3 +442,8 @@ private fun BindingRow(label: String, checked: Boolean, onClick: () -> Unit) {
         Text(label, color = Color.White, fontSize = 14.sp)
     }
 }
+
+/** Name of a key: a string resource when it has one, the key's own text for letters, digits and F-keys. */
+@Composable
+private fun keyTitle(key: KeyOption): String =
+    if (key.labelRes != 0) stringResource(key.labelRes) else key.literal

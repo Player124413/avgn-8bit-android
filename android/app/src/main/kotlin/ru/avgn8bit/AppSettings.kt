@@ -2,16 +2,18 @@ package ru.avgn8bit
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.annotation.StringRes
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import java.io.File
 
-enum class OrientationMode(val id: String, val label: String) {
-    LANDSCAPE("landscape", "Ландшафт"),
-    SENSOR_LANDSCAPE("sensor_landscape", "Ландшафт (по датчику)"),
-    PORTRAIT("portrait", "Портрет"),
-    AUTO("auto", "Как повернут телефон");
+/** [id] is what is written to the preferences; [labelRes] is what the settings screen shows. */
+enum class OrientationMode(val id: String, @StringRes val labelRes: Int) {
+    LANDSCAPE("landscape", R.string.orientation_landscape),
+    SENSOR_LANDSCAPE("sensor_landscape", R.string.orientation_sensor_landscape),
+    PORTRAIT("portrait", R.string.orientation_portrait),
+    AUTO("auto", R.string.orientation_auto);
 
     companion object {
         fun from(id: String?): OrientationMode = entries.firstOrNull { it.id == id } ?: SENSOR_LANDSCAPE

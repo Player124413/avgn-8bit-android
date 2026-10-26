@@ -65,7 +65,7 @@ object GameDataPatcher {
         val output = File(dir, OUTPUT_NAME)
         val partial = File(dir, "$OUTPUT_NAME.part")
         try {
-            if (!source.isFile || source.length() <= 0) return Result(false, "Нет файла data.win")
+            if (!source.isFile || source.length() <= 0) return Result(false, context.getString(R.string.patch_no_data_win))
             dir.mkdirs()
 
             context.assets.open(ASSET).use { raw ->
@@ -73,11 +73,11 @@ object GameDataPatcher {
                 var filled = 0
                 while (filled < HEADER_SIZE) {
                     val n = raw.read(header, filled, HEADER_SIZE - filled)
-                    if (n <= 0) return Result(false, "Патч повреждён: короткий заголовок")
+                    if (n <= 0) return Result(false, context.getString(R.string.patch_short_header))
                     filled += n
                 }
                 if (String(header, 0, 8, Charsets.US_ASCII) != MAGIC) {
-                    return Result(false, "Патч повреждён: неверная сигнатура")
+                    return Result(false, context.getString(R.string.patch_bad_signature))
                 }
 
                 val sourceSize = leLong(header, 8)
@@ -87,8 +87,7 @@ object GameDataPatcher {
                 if (source.length() != sourceSize) {
                     return Result(
                         false,
-                        "Файл data.win не совпадает с патчем (нужно $sourceSize байт, у вас ${source.length()}). " +
-                            "Игра запустится без патча."
+                        context.getString(R.string.patch_size_mismatch, sourceSize, source.length())
                     )
                 }
 
@@ -104,7 +103,7 @@ object GameDataPatcher {
 
                         fun emitLiteral(literal: ByteArray) {
                             if (written + literal.size > outputSize) {
-                                throw IllegalStateException("Патч выходит за границы файла")
+                                throw IllegalStateException(context.getString(R.string.patch_out_of_bounds))
                             }
                             out.write(literal)
                             crc.update(literal)
@@ -113,15 +112,15 @@ object GameDataPatcher {
 
                         fun emitCopy(offset: Long, length: Int) {
                             if (offset < 0 || length < 0 || offset + length > sourceSize) {
-                                throw IllegalStateException("Копирование за пределами data.win")
+                                throw IllegalStateException(context.getString(R.string.patch_copy_out_of_bounds))
                             }
-                            if (written + length > outputSize) throw IllegalStateException("Патч выходит за границы файла")
+                            if (written + length > outputSize) throw IllegalStateException(context.getString(R.string.patch_out_of_bounds))
                             input.seek(offset)
                             var left = length
                             while (left > 0) {
                                 val take = minOf(buffer.size, left)
                                 val n = input.read(buffer, 0, take)
-                                if (n <= 0) throw IllegalStateException("data.win короче, чем ожидает патч")
+                                if (n <= 0) throw IllegalStateException(context.getString(R.string.patch_short_source))
                                 out.write(buffer, 0, n)
                                 crc.update(buffer, 0, n)
                                 left -= n
@@ -131,7 +130,7 @@ object GameDataPatcher {
 
                         while (true) {
                             val tag = ops.read()
-                            if (tag < 0) throw IllegalStateException("Патч обрывается без операции E")
+                            if (tag < 0) throw IllegalStateException(context.getString(R.string.patch_truncated))
                             when (tag.toChar()) {
                                 'C' -> {
                                     // Fields are little endian; DataInputStream reads big endian.
@@ -142,14 +141,14 @@ object GameDataPatcher {
                                 'A' -> {
                                     val length = Integer.reverseBytes(ops.readInt())
                                     if (length < 0 || length > MAX_LITERAL) {
-                                        throw IllegalStateException("Некорректная длина литерала: $length")
+                                        throw IllegalStateException(context.getString(R.string.patch_bad_literal, length))
                                     }
                                     val literal = ByteArray(length)
                                     ops.readFully(literal)
                                     emitLiteral(literal)
                                 }
                                 'E' -> break
-                                else -> throw IllegalStateException("Неизвестная операция патча: $tag")
+                                else -> throw IllegalStateException(context.getString(R.string.patch_unknown_op, tag))
                             }
                             if (written - reported > 4L * 1024 * 1024) {
                                 reported = written
@@ -159,14 +158,14 @@ object GameDataPatcher {
 
                         out.flush()
                         if (written != outputSize) {
-                            throw IllegalStateException("Размер результата $written, ожидался $outputSize")
+                            throw IllegalStateException(context.getString(R.string.patch_bad_size, written, outputSize))
                         }
                         // The header of a GameMaker WAD is the IFF "FORM" tag: if the assembled file does not start
                         // with it, the patch was applied to a different game and the result is worthless.
                         val magic = ByteArray(4)
                         partial.inputStream().use { it.read(magic) }
                         if (String(magic, Charsets.US_ASCII) != "FORM") {
-                            throw IllegalStateException("Результат не похож на data.win")
+                            throw IllegalStateException(context.getString(R.string.patch_bad_result))
                         }
                         val value = crc.value
                         if (declaredCrc != 0L && declaredCrc != value) {
@@ -178,14 +177,14 @@ object GameDataPatcher {
                         File(dir, MARKER_NAME).writeText("$outputSize ${value.toString(16).padStart(8, '0')}")
                         onProgress(1f)
                         AppLog.write("Data patch applied: $written bytes, crc32 ${value.toString(16)}")
-                        return Result(true, "Патч применён", output)
+                        return Result(true, context.getString(R.string.patch_applied), output)
                     }
                 }
             }
         } catch (t: Throwable) {
             partial.delete()
             AppLog.write("Data patch failed: ${t.stackTraceToString()}")
-            return Result(false, "Патч не применился: ${t.message ?: t.javaClass.simpleName}")
+            return Result(false, context.getString(R.string.patch_failed, t.message ?: t.javaClass.simpleName))
         }
     }
 
@@ -221,7 +220,7 @@ private class InflatingStream(
             val n = inflater.inflate(b, off, len)
             if (n > 0) return n
             if (inflater.finished()) return -1
-            if (inflater.needsDictionary()) throw IllegalStateException("Патч повреждён: нужен словарь zlib")
+            if (inflater.needsDictionary()) throw IllegalStateException(context.getString(R.string.patch_needs_dictionary))
             if (inflater.needsInput()) {
                 val got = source.read(inputBuffer)
                 if (got <= 0) return -1

@@ -1,11 +1,30 @@
 # AVGN 8-bit — порт для Android
 
+> **English summary.** `android/` is the Android port of *Angry Video Game Nerd 8-bit*. It is the same
+> **Butterscotch** runtime (AGPL-3.0) that the PS Vita port in this repository uses, rebuilt with the NDK for
+> arm64-v8a and armeabi-v7a and driven by Jetpack Compose: touch controls with a full layout editor, game import
+> from a folder or a zip, and a launcher that speaks English and Russian. The game files are never shipped: the app
+> reads your own copy of the game and builds `data_vita.win` on the device. Download: the `latest-build` release.
+
 Порт игры *Angry Video Game Nerd 8-bit* на Android на базе свободного рантайма **Butterscotch**
-(AGPL-3.0) — того же, что использован в PS Vita-порте в этом репозитории.
+(AGPL-3.0) — того же, что использован в PS Vita-порте в этом репозитории. Рантайм собран NDK под
+`arm64-v8a` и `armeabi-v7a`, интерфейс — Jetpack Compose.
 
 В APK **нет файлов игры**. Приложение запускает вашу собственную копию: вы один раз указываете папку
 с игрой (Steam → «Управление» → «Просмотреть локальные файлы»), приложение копирует нужные файлы в
 своё хранилище, собирает из них `data_vita.win` и запускает игру.
+
+---
+
+## Язык интерфейса
+
+Лаунчер, меню паузы и редактор раскладки переведены на **английский и русский**. Тексты лежат в
+`app/src/main/res/values/strings.xml` (английский, язык по умолчанию) и `app/src/main/res/values-ru/strings.xml`
+(русский); приложение берёт язык из системных настроек, а на Android 13+ язык можно выбрать отдельно для
+приложения в настройках системы (`res/xml/locales_config.xml`).
+
+Добавляя новую строку, заведите её в обоих файлах с одинаковым `name`: раскладка `values/` — это то, что
+увидят все, у кого язык не русский, а `values-ru/` — русский перевод.
 
 ---
 

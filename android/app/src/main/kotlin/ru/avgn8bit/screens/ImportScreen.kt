@@ -42,8 +42,10 @@ import ru.avgn8bit.AppLog
 import ru.avgn8bit.AppSettings
 import ru.avgn8bit.BundledGame
 import ru.avgn8bit.GameStorage
+import ru.avgn8bit.R
 import ru.avgn8bit.ui.AvgnPanel
 import ru.avgn8bit.ui.AvgnRed
+import ru.avgn8bit.ui.str
 
 @Composable
 fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) {
@@ -87,14 +89,13 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
             .padding(20.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Файлы игры", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text(str(R.string.import_title), color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = onBack) { Text("Назад") }
+            TextButton(onClick = onBack) { Text(str(R.string.common_back)) }
         }
         Spacer(Modifier.height(10.dp))
         Text(
-            "Можно выбрать папку с игрой (та, что открывается по кнопке «Управление → Просмотреть локальные " +
-                "файлы» в Steam) или zip-архив с ней. Нужны data.win, шрифты .ttf и папки Lang, Attract, Cutscenes.",
+            str(R.string.import_intro),
             color = Color(0xFFB0B0B8),
             fontSize = 13.sp
         )
@@ -107,10 +108,9 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("Игра уже внутри APK", color = Color(0xFFA5D6A7), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(str(R.string.import_bundled_title), color = Color(0xFFA5D6A7), fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "Эта сборка включает файлы игры (${mb(bundledBytes)}). Их нужно один раз распаковать в " +
-                            "хранилище приложения — дальше всё как обычно.",
+                        str(R.string.import_bundled_body, mb(context, bundledBytes)),
                         color = Color(0xFFB9C7B4),
                         fontSize = 12.sp
                     )
@@ -130,7 +130,7 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
                                             }
                                         )
                                     }
-                                    progressText = "Собираю data_vita.win…"
+                                    progressText = context.getString(R.string.import_patching)
                                     val patch = withContext(Dispatchers.IO) {
                                         GameStorage.ensurePatched(context) { fraction ->
                                             progress = fraction
@@ -138,7 +138,7 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
                                     }
                                     patchOk = patch.ok
                                     patchMessage = if (patch.ok) {
-                                        "data_vita.win собран (${mb(patch.output?.length() ?: 0L)})"
+                                        context.getString(R.string.import_patch_done, mb(context, patch.output?.length() ?: 0L))
                                     } else {
                                         patch.message
                                     }
@@ -150,7 +150,7 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
                                     if (patch.ok) onDone()
                                 } catch (t: Throwable) {
                                     busy = false
-                                    error = "Не удалось распаковать: ${t.message}"
+                                    error = context.getString(R.string.import_unpack_failed, t.message ?: "")
                                     AppLog.write("Bundled install failed: ${t.stackTraceToString()}")
                                 }
                             }
@@ -158,7 +158,7 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
                         enabled = !busy,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(if (busy) "Распаковываю…" else "Распаковать и играть")
+                        Text(if (busy) str(R.string.import_unpacking) else str(R.string.import_unpack_and_play))
                     }
                 }
             }
@@ -171,7 +171,7 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(14.dp)
             ) {
-                Text("Выбрать папку игры", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text(str(R.string.import_pick_folder), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             }
             Spacer(Modifier.height(8.dp))
             OutlinedButton(
@@ -179,11 +179,10 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(14.dp)
             ) {
-                Text("Выбрать ZIP-архив с игрой", fontSize = 16.sp)
+                Text(str(R.string.import_pick_zip), fontSize = 16.sp)
             }
             Text(
-                "Архив можно положить в «Загрузки» и выбрать здесь — распаковка идёт сразу в хранилище " +
-                    "приложения, без лишней копии.",
+                str(R.string.import_zip_hint),
                 color = Color(0xFF6E6E78),
                 fontSize = 11.sp
             )
@@ -205,17 +204,17 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
             ) {
                 Column(Modifier.padding(16.dp)) {
                     Text(
-                        p.gameFolderName ?: "Игра",
+                        p.gameFolderName ?: str(R.string.import_default_game_name),
                         color = Color.White,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         buildString {
-                            append("Файлов: ${p.fileCount} · ")
-                            if (p.sizesIncomplete) append("около ") else append("")
-                            append(mb(p.totalBytes))
-                            if (p.videoBytes > 0) append(" (видео: ${mb(p.videoBytes)})")
+                            append(str(R.string.import_files_count, p.fileCount))
+                            append(" · ")
+                            append(if (p.sizesIncomplete) str(R.string.import_about_size, mb(context, p.totalBytes)) else mb(context, p.totalBytes))
+                            if (p.videoBytes > 0) append(" (" + str(R.string.import_videos_size, mb(context, p.videoBytes)) + ")")
                         },
                         color = Color(0xFF9E9EA7),
                         fontSize = 12.sp
@@ -223,14 +222,14 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
                     Spacer(Modifier.height(6.dp))
                     val byFolder = p.sizesByFolder.filterKeys { it != GameStorage.DATA_WIN && !it.endsWith(".ttf") }
                     byFolder.forEach { (folder, size) ->
-                        Text("$folder — ${mb(size)}", color = Color(0xFFB0B0B8), fontSize = 12.sp)
+                        Text("$folder — ${mb(context, size)}", color = Color(0xFFB0B0B8), fontSize = 12.sp)
                     }
                     Spacer(Modifier.height(12.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text("Копировать катсцены", color = Color.White, fontSize = 14.sp)
+                            Text(str(R.string.import_copy_cutscenes), color = Color.White, fontSize = 14.sp)
                             Text(
-                                "Видео занимают больше всего места. Без них игра просто пропускает ролики.",
+                                str(R.string.import_copy_cutscenes_hint),
                                 color = Color(0xFF9E9EA7),
                                 fontSize = 11.sp
                             )
@@ -254,7 +253,7 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
                                     }
                                     // The Vita build of the game needs the patched data.win; the patch itself is a
                                     // small diff shipped inside the app, so this runs offline and adds no download.
-                                    progressText = "Собираю data_vita.win…"
+                                    progressText = context.getString(R.string.import_patching)
                                     val patch = withContext(Dispatchers.IO) {
                                         GameStorage.ensurePatched(context) { fraction ->
                                             progress = 0.8f + fraction * 0.2f
@@ -262,7 +261,7 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
                                     }
                                     patchOk = patch.ok
                                     patchMessage = if (patch.ok) {
-                                        "data_vita.win собран (${mb(patch.output?.length() ?: 0L)})"
+                                        context.getString(R.string.import_patch_done, mb(context, patch.output?.length() ?: 0L))
                                     } else {
                                         patch.message
                                     }
@@ -272,7 +271,7 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
                                     progress = 1f
                                 } catch (t: Throwable) {
                                     busy = false
-                                    error = "Не удалось скопировать: ${t.message}"
+                                    error = context.getString(R.string.import_copy_failed, t.message ?: "")
                                     AppLog.write("Import failed: ${t.stackTraceToString()}")
                                 }
                             }
@@ -280,7 +279,7 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
                         enabled = !busy && p.hasDataWin,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(if (busy) "Копирую…" else "Импортировать (${mb(bytesToCopy)})")
+                        Text(if (busy) str(R.string.import_copying) else str(R.string.import_do_import, mb(context, bytesToCopy)))
                     }
                 }
             }
@@ -300,7 +299,7 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
         if (done && !busy) {
             Spacer(Modifier.height(16.dp))
             Text(
-                "Файлы игры готовы. Запустить игру можно с главного экрана.",
+                str(R.string.import_ready),
                 color = Color(0xFF9CCC65),
                 fontSize = 13.sp
             )
@@ -310,7 +309,7 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
             }
             Spacer(Modifier.height(10.dp))
             Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) {
-                Text("Готово")
+                Text(str(R.string.common_done))
             }
             Spacer(Modifier.height(6.dp))
             OutlinedButton(
@@ -322,7 +321,7 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
                         }
                         patchOk = result.ok
                         patchMessage = if (result.ok) {
-                            "data_vita.win собран (${mb(result.output?.length() ?: 0L)})"
+                            context.getString(R.string.import_patch_done, mb(context, result.output?.length() ?: 0L))
                         } else {
                             result.message
                         }
@@ -331,14 +330,13 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Пересобрать data_vita.win")
+                Text(str(R.string.import_rebuild_patch))
             }
         }
 
         Spacer(Modifier.height(24.dp))
         Text(
-            "Порт не содержит файлов игры (если они не были вложены в APK при сборке). Он читает данные из вашей " +
-                "копии, поэтому без импорта игра не запустится.",
+            str(R.string.import_footer),
             color = Color(0xFF6E6E78),
             fontSize = 11.sp
         )
@@ -353,8 +351,8 @@ private fun keepPermission(context: android.content.Context, uri: Uri) {
     }
 }
 
-private fun mb(bytes: Long): String = when {
-    bytes <= 0 -> "0 МБ"
-    bytes >= 1073741824L -> "%.1f ГБ".format(bytes / 1073741824.0)
-    else -> "%d МБ".format(bytes / 1048576)
+/** Size as the user reads it ("1.5 GB"), in the language of the device. */
+private fun mb(context: android.content.Context, bytes: Long): String = when {
+    bytes >= 1073741824L -> context.getString(R.string.common_size_gb, bytes / 1073741824.0)
+    else -> context.getString(R.string.common_size_mb, bytes / 1048576)
 }

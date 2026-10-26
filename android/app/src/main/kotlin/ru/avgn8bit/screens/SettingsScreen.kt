@@ -33,7 +33,9 @@ import ru.avgn8bit.GameStorage
 import ru.avgn8bit.Haptics
 import ru.avgn8bit.OrientationMode
 import ru.avgn8bit.VideoFilter
+import ru.avgn8bit.R
 import ru.avgn8bit.ui.AvgnPanel
+import ru.avgn8bit.ui.str
 
 @Composable
 fun SettingsScreen(
@@ -43,6 +45,9 @@ fun SettingsScreen(
     onAbout: () -> Unit
 ) {
     val context = LocalContext.current
+    // Read outside the button's lambda: those run later, outside composition.
+    val logSubject = str(R.string.log_subject)
+    val shareChooser = str(R.string.common_share_log)
 
     Column(
         modifier = Modifier
@@ -51,57 +56,55 @@ fun SettingsScreen(
             .padding(20.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Настройки", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text(str(R.string.settings_title), color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = onBack) { Text("Назад") }
+            TextButton(onClick = onBack) { Text(str(R.string.common_back)) }
         }
         Spacer(Modifier.height(12.dp))
 
-        Section("Графика") {
-            Text("Фильтр", color = Color(0xFFB0B0B8), fontSize = 12.sp)
+        Section(str(R.string.settings_section_graphics)) {
+            Text(str(R.string.settings_filter), color = Color(0xFFB0B0B8), fontSize = 12.sp)
             Row {
                 FilterChip(
                     selected = settings.filter == VideoFilter.SHARP,
                     onClick = { settings.filter = VideoFilter.SHARP },
-                    label = { Text("Пиксели") },
+                    label = { Text(str(R.string.filter_sharp)) },
                     modifier = Modifier.padding(end = 6.dp)
                 )
                 FilterChip(
                     selected = settings.filter == VideoFilter.SMOOTH,
                     onClick = { settings.filter = VideoFilter.SMOOTH },
-                    label = { Text("Сглаживание") },
+                    label = { Text(str(R.string.filter_smooth)) },
                     modifier = Modifier.padding(end = 6.dp)
                 )
                 FilterChip(
                     selected = settings.filter == VideoFilter.CRT,
                     onClick = { settings.filter = VideoFilter.CRT },
-                    label = { Text("CRT") }
+                    label = { Text(str(R.string.filter_crt)) }
                 )
             }
             Spacer(Modifier.height(4.dp))
-            SwitchRow("Целочисленное масштабирование", settings.integerScaling) { settings.integerScaling = it }
-            SwitchRow("Широкий экран (больше видно по краям)", settings.widescreen) { settings.widescreen = it }
-            SwitchRow("Счётчик FPS", settings.showFps) { settings.showFps = it }
-            SwitchRow("Оптимизации Vita (быстрее)", settings.fastGraphics) { settings.fastGraphics = it }
+            SwitchRow(str(R.string.settings_integer_scaling), settings.integerScaling) { settings.integerScaling = it }
+            SwitchRow(str(R.string.settings_widescreen), settings.widescreen) { settings.widescreen = it }
+            SwitchRow(str(R.string.settings_fps), settings.showFps) { settings.showFps = it }
+            SwitchRow(str(R.string.settings_fast_graphics), settings.fastGraphics) { settings.fastGraphics = it }
             Text(
-                "Рендер порта унаследован от PS Vita-версии: кэш текстур, непрозрачные батчи, запекание. " +
-                    "Обычно это самый быстрый режим; если картинка выглядит неправильно (чёрные или пропавшие " +
-                    "спрайты), выключите — тогда все оптимизации отключаются через файлы-маркеры рядом с data.win.",
+                str(R.string.settings_fast_graphics_hint),
                 color = Color(0xFF888888),
                 fontSize = 11.sp
             )
         }
 
-        Section("Управление") {
-            SliderRow("Прозрачность кнопок", settings.controlsOpacity, 0.25f..1f) { settings.controlsOpacity = it }
-            SliderRow("Размер кнопок", settings.controlsScale, 0.6f..1.6f) { settings.controlsScale = it }
-            SwitchRow("Показывать кнопки", settings.controlsVisible) { settings.controlsVisible = it }
-            SwitchRow("Вибрация при нажатии", settings.haptics) {
+        Section(str(R.string.settings_section_controls)) {
+            SliderRow(str(R.string.settings_controls_opacity), settings.controlsOpacity, 0.25f..1f) { settings.controlsOpacity = it }
+            SliderRow(str(R.string.settings_controls_scale), settings.controlsScale, 0.6f..1.6f) { settings.controlsScale = it }
+            SwitchRow(str(R.string.settings_controls_visible), settings.controlsVisible) { settings.controlsVisible = it }
+            SwitchRow(str(R.string.settings_haptics), settings.haptics) {
                 settings.haptics = it
                 Haptics.configure(it, settings.hapticsStrength)
             }
             if (settings.haptics) {
-                Text("Сила вибрации", color = Color(0xFFB0B0B8), fontSize = 12.sp)
+                Text(str(R.string.settings_haptics_strength), color = Color(0xFFB0B0B8), fontSize = 12.sp)
                 Slider(
                     value = settings.hapticsStrength.toFloat(),
                     onValueChange = {
@@ -113,50 +116,50 @@ fun SettingsScreen(
             }
             Spacer(Modifier.height(6.dp))
             OutlinedButton(onClick = onControls, modifier = Modifier.fillMaxWidth()) {
-                Text("Настроить раскладку кнопок")
+                Text(str(R.string.settings_edit_layout))
             }
         }
 
-        Section("Экран") {
-            Text("Ориентация", color = Color(0xFFB0B0B8), fontSize = 12.sp)
+        Section(str(R.string.settings_section_screen)) {
+            Text(str(R.string.settings_orientation), color = Color(0xFFB0B0B8), fontSize = 12.sp)
             Row(Modifier.fillMaxWidth()) {
                 OrientationMode.entries.forEach { mode ->
                     FilterChip(
                         selected = settings.orientation == mode,
                         onClick = { settings.orientation = mode },
-                        label = { Text(mode.label, fontSize = 11.sp) },
+                        label = { Text(str(mode.labelRes), fontSize = 11.sp) },
                         modifier = Modifier.padding(end = 6.dp)
                     )
                 }
             }
             Spacer(Modifier.height(4.dp))
-            SwitchRow("Не гасить экран", settings.keepScreenOn) { settings.keepScreenOn = it }
-            SwitchRow("Скрывать системные панели", settings.hideSystemBars) { settings.hideSystemBars = it }
+            SwitchRow(str(R.string.settings_keep_screen_on), settings.keepScreenOn) { settings.keepScreenOn = it }
+            SwitchRow(str(R.string.settings_hide_system_bars), settings.hideSystemBars) { settings.hideSystemBars = it }
         }
 
-        Section("Файлы") {
-            SwitchRow("Копировать видео при импорте", settings.includeVideosOnImport) { settings.includeVideosOnImport = it }
+        Section(str(R.string.settings_section_files)) {
+            SwitchRow(str(R.string.settings_include_videos), settings.includeVideosOnImport) { settings.includeVideosOnImport = it }
             Spacer(Modifier.height(6.dp))
             OutlinedButton(
                 onClick = {
                     val file = GameStorage.logFile(context)
                     val intent = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
-                        putExtra(Intent.EXTRA_SUBJECT, "AVGN 8-bit лог")
+                        putExtra(Intent.EXTRA_SUBJECT, logSubject)
                         putExtra(Intent.EXTRA_TEXT, AppLog.read())
                     }
                     try {
-                        context.startActivity(Intent.createChooser(intent, "Поделиться логом"))
+                        context.startActivity(Intent.createChooser(intent, shareChooser))
                     } catch (_: Throwable) {
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Поделиться логом (${AppLog.path ?: "нет файла"})")
+                Text(str(R.string.settings_share_log_with_path, AppLog.path ?: str(R.string.common_no_file)))
             }
             Spacer(Modifier.height(6.dp))
             OutlinedButton(onClick = onAbout, modifier = Modifier.fillMaxWidth()) {
-                Text("О порте и лицензии")
+                Text(str(R.string.settings_about))
             }
         }
         Spacer(Modifier.height(30.dp))

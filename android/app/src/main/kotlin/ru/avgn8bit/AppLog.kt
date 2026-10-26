@@ -8,7 +8,7 @@ import java.util.Locale
 
 /**
  * The log the game itself writes (native side) plus everything the app wants to remember about a session.
- * Kept in the app's files dir, shown in Settings → Логи and shareable from there.
+ * Kept in the app's files dir, shown in the in-game Logs dialog and shareable from there.
  */
 object AppLog {
     private const val TAG = "AVGN8bit"
@@ -46,10 +46,11 @@ object AppLog {
         }
     }
 
+    /** The whole log, or an empty string when there is nothing to show yet (the UI names that case). */
     fun read(): String = try {
-        file?.takeIf { it.exists() }?.readText().orEmpty().ifEmpty { "Лог пуст." }
-    } catch (t: Throwable) {
-        "Не удалось прочитать лог: ${t.message}"
+        file?.takeIf { it.exists() }?.readText().orEmpty()
+    } catch (_: Throwable) {
+        ""
     }
 
     fun clear() {

@@ -34,7 +34,7 @@ object GameStorage {
     fun dataDir(context: Context): File = File(context.filesDir, DIR_DATA).apply { mkdirs() }
     fun savesDir(context: Context): File = File(context.filesDir, DIR_SAVES).apply { mkdirs() }
 
-    /** The folder with the two logs, opened from the "Логи" menu. */
+    /** The folder with the two logs, opened from the Logs menu. */
     fun logsDir(context: Context): File = File(context.filesDir, "logs").apply { mkdirs() }
 
     /** What the app itself logs. */
@@ -80,13 +80,13 @@ object GameStorage {
     fun ensurePatched(context: Context, onProgress: (Float) -> Unit = {}): GameDataPatcher.Result {
         val dir = dataDir(context)
         if (GameDataPatcher.isPatched(dir)) {
-            return GameDataPatcher.Result(true, "Уже собран", File(dir, GameDataPatcher.OUTPUT_NAME))
+            return GameDataPatcher.Result(true, context.getString(R.string.patch_already), File(dir, GameDataPatcher.OUTPUT_NAME))
         }
         // Someone brought the Vita patcher's output instead of the retail data.win: nothing to do.
         patchedDataWin(context)?.let {
-            return GameDataPatcher.Result(true, "Взят готовый data_vita.win", it)
+            return GameDataPatcher.Result(true, context.getString(R.string.patch_used_ready), it)
         }
-        val raw = rawDataWin(context) ?: return GameDataPatcher.Result(false, "Нет файла data.win")
+        val raw = rawDataWin(context) ?: return GameDataPatcher.Result(false, context.getString(R.string.patch_no_data_win))
         return GameDataPatcher.apply(context, raw, dir, onProgress)
     }
 
@@ -124,11 +124,11 @@ object GameStorage {
      */
     fun inspectFolder(context: Context, uri: Uri): ImportPreview {
         val root = DocumentFile.fromTreeUri(context, uri)
-            ?: return ImportPreview(null, emptyList(), 0, "Папка недоступна", kind = Kind.FOLDER)
+            ?: return ImportPreview(null, emptyList(), 0, context.getString(R.string.storage_folder_unavailable), kind = Kind.FOLDER)
         val gameRoot = findGameRoot(root)
             ?: return ImportPreview(
                 null, emptyList(), 0,
-                "В этой папке нет data.win — выберите папку с файлами игры",
+                context.getString(R.string.storage_no_data_win_folder),
                 kind = Kind.FOLDER
             )
         val entries = collect(gameRoot, includeVideos = true)
@@ -166,7 +166,10 @@ object GameStorage {
             AppLog.write("Could not read the zip: ${t.stackTraceToString()}")
             return ImportPreview(
                 null, emptyList(), 0,
-                "Не удалось прочитать архив: ${t.message ?: "файл повреждён"}",
+                context.getString(
+                    R.string.storage_zip_read_failed,
+                    t.message ?: context.getString(R.string.storage_zip_corrupt)
+                ),
                 kind = Kind.ZIP, uri = uri
             )
         }
@@ -174,7 +177,7 @@ object GameStorage {
         val root = zipGameRoot(names)
             ?: return ImportPreview(
                 null, emptyList(), 0,
-                "В архиве нет data.win — нужен zip с файлами игры или с папкой AVGN8bit из Vita-патчера",
+                context.getString(R.string.storage_no_data_win_zip),
                 kind = Kind.ZIP, uri = uri
             )
         val folderName = root.trimEnd('/').substringAfterLast('/').ifEmpty { "AVGN 8-bit" }
@@ -255,7 +258,7 @@ object GameStorage {
         when (preview.kind) {
             Kind.FOLDER -> importFromFolder(context, preview, includeVideos, onProgress)
             Kind.ZIP -> {
-                val uri = preview.uri ?: throw IllegalStateException("Архив недоступен")
+                val uri = preview.uri ?: throw IllegalStateException(context.getString(R.string.storage_zip_unavailable))
                 importFromZip(context, uri, preview, includeVideos, onProgress)
             }
         }
@@ -343,7 +346,7 @@ object GameStorage {
 
     private fun openZip(context: Context, uri: Uri): ZipInputStream {
         val stream = context.contentResolver.openInputStream(uri)
-            ?: throw IllegalStateException("Не удалось открыть архив")
+            ?: throw IllegalStateException(context.getString(R.string.storage_zip_open_failed))
         return ZipInputStream(stream.buffered(1 shl 16))
     }
 
