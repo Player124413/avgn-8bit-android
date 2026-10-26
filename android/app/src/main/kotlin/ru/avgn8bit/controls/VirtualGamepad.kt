@@ -3,10 +3,6 @@ package ru.avgn8bit.controls
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -14,11 +10,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -26,8 +21,12 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.sp
 import ru.avgn8bit.Haptics
@@ -47,6 +46,20 @@ private val ACCENT = Color(0xFFE53935)
 private val BASE = Color(0xFFFFFFFF)
 private val EDIT_ACCENT = Color(0xFF4FC3F7)
 
+/**
+ * The colours the two pads are known by: the DualShock symbols and the Xbox letters. They are what makes a row of
+ * identical grey circles readable at a glance, and they are the same in both schemes (blue is the bottom button on a
+ * DualShock and X on an Xbox pad), so one table covers both.
+ */
+private fun glyphColor(label: String): Color = when (label) {
+    "×", "X" -> Color(0xFF6E9BFF)   // blue
+    "○", "B" -> Color(0xFFFF6B6B)   // red
+    "□" -> Color(0xFFFF8FC7)        // pink
+    "△", "A" -> Color(0xFF6BD98A)   // green
+    "Y" -> Color(0xFFFFD24C)        // yellow
+    else -> BASE
+}
+
 /** What the overlay currently draws for one element (immutable, so Compose notices every change). */
 private data class ElementState(
     val pressed: Boolean = false,
@@ -60,6 +73,11 @@ private data class ElementState(
  * One pointer handler owns all fingers (instead of one per button), so multi-touch works, a thumb can slide
  * from one D-Pad direction to another, and dragging elements around in the editor is the same code path as
  * pressing them.
+ *
+ * The buttons are drawn as whole controls — shape, border, name — instead of a plain circle with the name on a
+ * label next to it. The label used to sit above the button in a box of its own, which at phone densities came out
+ * several times the size of the button it named: the picture said "R1" in huge letters, the button itself was a
+ * small circle a few centimetres lower, and a tap on the letters hit nothing at all.
  */
 @Composable
 fun ControlOverlay(
@@ -87,6 +105,7 @@ fun ControlOverlay(
     val currentOnLayoutChange by rememberUpdatedState(onLayoutChange)
 
     val density = LocalDensity.current
+    val measurer = rememberTextMeasurer()
 
     Box(
         modifier = modifier
@@ -150,58 +169,54 @@ fun ControlOverlay(
                     "dpad" -> drawDpadShape(center, radius, alpha, state)
                     "stick" -> drawStickShape(center, radius, alpha, state)
                 }
-                if (editable) {
+            }
+
+            // The names go last so that no neighbouring control can paint over them.
+            for (element in layout.elements) {
+                if (element.type != "button" || element.label.isEmpty()) continue
+                val center = Offset(element.x * widthPx, element.y * heightPx)
+                val radius = (element.size * scaleMultiplier * shorter / 2f).coerceAtLeast(16f)
+                drawButtonLabel(
+                    measurer = measurer,
+                    label = element.label,
+                    center = center,
+                    radius = radius,
+                    alpha = (element.opacity * opacityMultiplier).coerceIn(0.05f, 1f),
+                    density = density.density,
+                    capsule = element.style == "capsule"
+                )
+            }
+
+            if (editable) {
+                for (element in layout.elements) {
+                    val center = Offset(element.x * widthPx, element.y * heightPx)
+                    val radius = (element.size * scaleMultiplier * shorter / 2f).coerceAtLeast(16f)
                     val selected = element.id == selectedId
                     val color = if (selected) EDIT_ACCENT else Color(0x66FFFFFF)
+                    val width = if (selected) 5f else 2f
                     if (element.type == "dpad") {
                         drawRoundRect(
                             color = color,
                             topLeft = Offset(center.x - radius, center.y - radius),
                             size = Size(radius * 2, radius * 2),
                             cornerRadius = CornerRadius(radius * 0.22f),
-                            style = Stroke(width = if (selected) 5f else 2f)
+                            style = Stroke(width = width)
+                        )
+                    } else if (element.style == "capsule") {
+                        val hw = radius * CAPSULE_HALF_WIDTH
+                        val hh = radius * CAPSULE_HALF_HEIGHT
+                        drawRoundRect(
+                            color = color,
+                            topLeft = Offset(center.x - hw, center.y - hh),
+                            size = Size(hw * 2, hh * 2),
+                            cornerRadius = CornerRadius(hh),
+                            style = Stroke(width = width)
                         )
                     } else {
-                        drawCircle(color, radius, center, style = Stroke(width = if (selected) 5f else 2f))
+                        drawCircle(color, radius, center, style = Stroke(width = width))
                     }
                     drawCircle(color, radius = 5f, center = center)
                 }
-            }
-        }
-
-        // Labels are drawn in a wide, free-standing box next to the element instead of inside it: the old box was a
-        // square of the button's size, which cut longer names ("Esc", "Start", a triangle) in half, and the middle of
-        // the button is where the finger presses and where the arrows of a D-Pad are.
-        val labelSizeSp = (shorter * 0.042f).coerceAtLeast(11f)
-        val labelHeightPx = labelSizeSp * density.density
-        val labelWidthPx = labelHeightPx * 5f
-        for (element in layout.elements) {
-            if (element.label.isEmpty()) continue
-            val radius = (element.size * scaleMultiplier * shorter / 2f).coerceAtLeast(16f)
-            val alpha = (element.opacity * opacityMultiplier).coerceIn(0.15f, 1f)
-            val centerX = element.x * widthPx
-            val centerY = element.y * heightPx
-            // Above the element, or below it when the element sits too close to the top edge for the text to fit.
-            val above = centerY - radius - labelHeightPx >= 0f
-            val top = if (above) centerY - radius - labelHeightPx else centerY + radius + labelHeightPx * 0.25f
-            Box(
-                modifier = Modifier
-                    .offset {
-                        IntOffset(
-                            (centerX - labelWidthPx / 2f).roundToInt(),
-                            top.roundToInt()
-                        )
-                    }
-                    .size(with(density) { labelWidthPx.toDp() }, with(density) { labelHeightPx.toDp() })
-                    .wrapContentSize(Alignment.Center, unbounded = true)
-            ) {
-                Text(
-                    text = element.label,
-                    color = BASE.copy(alpha = (alpha + 0.4f).coerceAtMost(1f)),
-                    fontSize = labelSizeSp.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1
-                )
             }
         }
     }
@@ -230,17 +245,34 @@ private class GestureHandler(
     private fun centerOf(element: ControlElement) =
         Offset(element.x * size().width, element.y * size().height)
 
+    /**
+     * The control under a finger. Buttons get a hit circle slightly larger than what they draw, because a thumb
+     * lands with a few millimetres of error and a control that is visible but does not react reads as broken. When
+     * several controls overlap, the one the finger is closest to (relative to its own size) wins.
+     */
     private fun elementAt(position: Offset): ControlElement? {
-        val layout = layoutProvider()
-        return layout.elements.lastOrNull { element ->
+        var best: ControlElement? = null
+        var bestScore = Float.MAX_VALUE
+        for (element in layoutProvider().elements) {
             val center = centerOf(element)
             val radius = radiusOf(element)
-            if (element.type == "dpad") {
-                abs(position.x - center.x) <= radius && abs(position.y - center.y) <= radius
-            } else {
-                hypot(position.x - center.x, position.y - center.y) <= radius
+            val dx = position.x - center.x
+            val dy = position.y - center.y
+            val inside = when {
+                element.type == "dpad" -> abs(dx) <= radius && abs(dy) <= radius
+                element.style == "capsule" -> abs(dx) <= radius * CAPSULE_HALF_WIDTH * 1.10f &&
+                    abs(dy) <= radius * CAPSULE_HALF_HEIGHT * 1.20f
+                else -> hypot(dx, dy) <= radius * 1.18f
+            }
+            if (!inside) continue
+            val reach = radius * 1.18f
+            val score = hypot(dx, dy) / reach
+            if (score < bestScore) {
+                bestScore = score
+                best = element
             }
         }
+        return best
     }
 
     private fun setState(id: String, transform: (ElementState) -> ElementState) {
@@ -408,6 +440,11 @@ fun releaseAllControls(layout: ControlLayout, sink: ControlSink) {
     sink.axis(1, 0f)
 }
 
+/**
+ * A button: a soft shadow, a translucent body, a bright rim and, when it is held, a red glow. Shoulders are rounded
+ * rectangles, Select / Start / the guide button are capsules (their names are words, not a single symbol) and the
+ * stick clicks are small rounded squares, so the pad reads as a pad instead of a pile of equal circles.
+ */
 private fun DrawScope.drawButtonShape(
     element: ControlElement,
     center: Offset,
@@ -416,24 +453,123 @@ private fun DrawScope.drawButtonShape(
     state: ElementState?
 ) {
     val pressed = state?.pressed == true
-    val r = if (pressed) radius * 1.05f else radius
-    val fill = if (pressed) ACCENT.copy(alpha = (alpha + 0.30f).coerceAtMost(0.95f)) else BASE.copy(alpha = alpha * 0.45f)
-    val border = if (pressed) ACCENT.copy(alpha = 0.95f) else BASE.copy(alpha = (alpha + 0.25f).coerceAtMost(0.9f))
+    val r = if (pressed) radius * 1.03f else radius
+
+    val bodyTop = if (pressed) ACCENT.copy(alpha = (alpha + 0.42f).coerceAtMost(0.92f)) else BASE.copy(alpha = alpha * 0.30f)
+    val bodyBottom = if (pressed) ACCENT.copy(alpha = (alpha + 0.18f).coerceAtMost(0.80f)) else Color(0xFF14141A).copy(alpha = alpha * 0.90f)
+    val border = if (pressed) ACCENT.copy(alpha = 0.98f) else BASE.copy(alpha = (alpha + 0.42f).coerceAtMost(0.92f))
+    val strokeWidth = r * 0.10f
+
+    val brush = Brush.verticalGradient(
+        colors = listOf(bodyTop, bodyBottom),
+        startY = center.y - r,
+        endY = center.y + r
+    )
 
     when (element.style) {
         "square" -> {
-            drawRect(fill, Offset(center.x - r, center.y - r), Size(r * 2, r * 2))
-            drawRect(border, Offset(center.x - r, center.y - r), Size(r * 2, r * 2), style = Stroke(width = 3f))
+            drawRect(
+                color = Color(0x40000000),
+                topLeft = Offset(center.x - r * 1.04f, center.y - r),
+                size = Size(r * 2.08f, r * 2.08f)
+            )
+            drawRect(brush, Offset(center.x - r, center.y - r), Size(r * 2, r * 2))
+            drawRect(border, Offset(center.x - r, center.y - r), Size(r * 2, r * 2), style = Stroke(width = strokeWidth))
         }
         "rounded" -> {
-            drawRoundRect(fill, Offset(center.x - r, center.y - r), Size(r * 2, r * 2), CornerRadius(r * 0.35f))
-            drawRoundRect(border, Offset(center.x - r, center.y - r), Size(r * 2, r * 2), CornerRadius(r * 0.35f), style = Stroke(width = 3f))
+            val corner = CornerRadius(r * 0.32f)
+            drawRoundRect(
+                color = Color(0x40000000),
+                topLeft = Offset(center.x - r * 1.04f, center.y - r),
+                size = Size(r * 2.08f, r * 2.08f),
+                cornerRadius = CornerRadius(r * 0.36f)
+            )
+            drawRoundRect(brush, Offset(center.x - r, center.y - r), Size(r * 2, r * 2), corner)
+            drawRoundRect(border, Offset(center.x - r, center.y - r), Size(r * 2, r * 2), corner, style = Stroke(width = strokeWidth))
+        }
+        "capsule" -> {
+            val hw = r * CAPSULE_HALF_WIDTH
+            val hh = r * CAPSULE_HALF_HEIGHT
+            val pill = CornerRadius(hh)
+            drawRoundRect(
+                color = Color(0x40000000),
+                topLeft = Offset(center.x - hw, center.y - hh + r * 0.05f),
+                size = Size(hw * 2, hh * 2),
+                cornerRadius = pill
+            )
+            drawRoundRect(brush, Offset(center.x - hw, center.y - hh), Size(hw * 2, hh * 2), pill)
+            drawRoundRect(border, Offset(center.x - hw, center.y - hh), Size(hw * 2, hh * 2), pill, style = Stroke(width = strokeWidth))
         }
         else -> {
-            drawCircle(fill, radius = r, center = center)
-            drawCircle(border, radius = r, center = center, style = Stroke(width = 3f))
+            drawCircle(Color(0x40000000), radius = r * 1.08f, center = center + Offset(0f, r * 0.04f))
+            drawCircle(brush, radius = r, center = center)
+            drawCircle(border, radius = r, center = center, style = Stroke(width = strokeWidth))
+            // A thin inner rim: it makes the face of the button look pressed into the pad.
+            drawCircle(BASE.copy(alpha = alpha * 0.16f), radius = r * 0.80f, center = center, style = Stroke(width = r * 0.05f))
         }
     }
+
+    if (pressed) {
+        val glow = ACCENT.copy(alpha = 0.35f)
+        if (element.style == "capsule") {
+            drawRoundRect(
+                color = glow,
+                topLeft = Offset(center.x - r * (CAPSULE_HALF_WIDTH + 0.06f), center.y - r * (CAPSULE_HALF_HEIGHT + 0.06f)),
+                size = Size(r * (CAPSULE_HALF_WIDTH + 0.06f) * 2f, r * (CAPSULE_HALF_HEIGHT + 0.06f) * 2f),
+                cornerRadius = CornerRadius(r * (CAPSULE_HALF_HEIGHT + 0.06f)),
+                style = Stroke(width = strokeWidth)
+            )
+        } else {
+            drawCircle(glow, radius = r * 1.20f, center = center, style = Stroke(width = strokeWidth))
+        }
+    }
+}
+
+/** A capsule button is this much wider (and lower) than the circle its [ControlElement.size] describes. */
+private const val CAPSULE_HALF_WIDTH = 1.34f
+private const val CAPSULE_HALF_HEIGHT = 0.78f
+
+/** The name of a button, centred on the button itself and shrunk until it fits inside it. */
+private fun DrawScope.drawButtonLabel(
+    measurer: TextMeasurer,
+    label: String,
+    center: Offset,
+    radius: Float,
+    alpha: Float,
+    density: Float,
+    capsule: Boolean = false
+) {
+    val single = label.length == 1
+    val target = when {
+        capsule -> radius * 0.78f
+        single -> radius * 1.12f
+        else -> radius * 0.80f
+    }
+
+    fun layout(sizePx: Float) = measurer.measure(
+        text = AnnotatedString(label),
+        style = TextStyle(
+            fontSize = (sizePx / density).sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Unspecified
+        ),
+        maxLines = 1
+    )
+
+    var text = layout(target)
+    val maxWidth = radius * if (capsule) 2.30f else 1.52f
+    if (text.size.width > maxWidth && text.size.width > 0) {
+        text = layout(target * (maxWidth / text.size.width))
+    }
+    val maxHeight = radius * if (capsule) 1.20f else 1.62f
+    if (text.size.height > maxHeight && text.size.height > 0) {
+        text = layout(target * (maxHeight / text.size.height))
+    }
+
+    val topLeft = Offset(center.x - text.size.width / 2f, center.y - text.size.height / 2f)
+    val color = glyphColor(label).copy(alpha = (alpha + 0.62f).coerceAtMost(1f))
+    drawText(text, color = Color(0x99000000), topLeft = topLeft + Offset(0f, radius * 0.06f))
+    drawText(text, color = color, topLeft = topLeft)
 }
 
 private fun DrawScope.drawDpadShape(center: Offset, radius: Float, alpha: Float, state: ElementState?) {

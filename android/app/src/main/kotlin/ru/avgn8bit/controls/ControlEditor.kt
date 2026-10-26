@@ -277,7 +277,8 @@ private fun ElementProperties(
                     for (style in listOf(
                         "circle" to str(R.string.style_circle),
                         "rounded" to str(R.string.style_rounded),
-                        "square" to str(R.string.style_square)
+                        "square" to str(R.string.style_square),
+                        "capsule" to str(R.string.style_capsule)
                     )) {
                         FilterChip(
                             selected = element.style == style.first,

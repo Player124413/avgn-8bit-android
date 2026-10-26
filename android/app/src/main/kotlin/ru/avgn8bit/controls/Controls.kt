@@ -194,6 +194,10 @@ enum class ButtonScheme(@StringRes val labelRes: Int) {
     /** The button in the middle of the pad: PS on a DualShock, the guide button on an Xbox controller. */
     val guideLabel: String
         get() = if (this == PLAYSTATION) "PS" else "Xbox"
+
+    /** The brand, for a switch that has to fit on one line. The same in every language. */
+    val brand: String
+        get() = if (this == PLAYSTATION) "PlayStation" else "Xbox"
 }
 
 /** Ready-made layouts: one per [ButtonScheme], in the two orientations. */
@@ -249,47 +253,57 @@ object Presets {
     private fun shoulder(x: Float, y: Float, size: Float, label: String, button: PadButton) =
         ControlElement.button(x, y, size, label, listOf(Binding.pad(button.index)), 0.38f, style = "rounded")
 
-    /** Select / Start / the guide button and the two stick clicks: small, they are rarely used in this game. */
+    /**
+     * Select / Start / the guide button and the two stick clicks. The first three are capsules rather than circles:
+     * their names are words, and a word squeezed into a round button ends up unreadable.
+     */
     private fun small(x: Float, y: Float, size: Float, label: String, vararg bindings: Binding) =
-        ControlElement.button(x, y, size, label, bindings.toList(), 0.30f, style = "rounded")
+        ControlElement.button(x, y, size, label, bindings.toList(), 0.32f, style = "capsule")
 
-    private fun bottomRow(scheme: ButtonScheme, y: Float, size: Float) = listOf(
-        small(0.44f, y, size, "Select", Binding.pad(PadButton.SELECT.index), Binding.key(BACK_KEY)),
-        small(0.50f, y, size * 0.9f, scheme.guideLabel, Binding.pad(PadButton.HOME.index)),
-        small(0.56f, y, size, "Start", Binding.pad(PadButton.START.index), Binding.key(START_KEY))
+    private fun stickClick(x: Float, y: Float, size: Float, label: String, button: PadButton) =
+        ControlElement.button(x, y, size, label, listOf(Binding.pad(button.index)), 0.28f, style = "rounded")
+
+    private fun bottomRow(scheme: ButtonScheme, y: Float, size: Float, dx: Float) = listOf(
+        small(0.50f - dx, y, size, "Select", Binding.pad(PadButton.SELECT.index), Binding.key(BACK_KEY)),
+        small(0.50f, y, size, scheme.guideLabel, Binding.pad(PadButton.HOME.index)),
+        small(0.50f + dx, y, size, "Start", Binding.pad(PadButton.START.index), Binding.key(START_KEY))
     )
 
     /**
      * Landscape: D-Pad under the left thumb, the face buttons under the right one, the shoulders along the top edge
-     * (clear of the pause button in the corner) and Select / Start / guide in the middle of the top edge.
+     * (clear of the pause button in the corner) and Select / Start / the guide button in the middle of that edge.
+     * The stick clicks sit low in the middle, where the thumbs never rest by accident.
+     *
+     * The sizes are the ones a thumb needs on a phone held sideways: the face buttons come out at roughly 50 dp, the
+     * shoulders at 45 dp, so a button is a button and not a dot next to its own name.
      */
     private fun landscapeLayout(scheme: ButtonScheme): ControlLayout {
         val elements = buildList {
             add(ControlElement.dpad(x = 0.115f, y = 0.70f, size = 0.40f))
-            addAll(faceButtons(scheme, cx = 0.83f, cy = 0.685f, step = 0.195f, size = 0.155f, portrait = false))
-            add(shoulder(0.105f, 0.085f, 0.14f, "L2", PadButton.L2))
-            add(shoulder(0.235f, 0.085f, 0.14f, "L1", PadButton.L1))
-            add(shoulder(0.765f, 0.085f, 0.14f, "R1", PadButton.R1))
-            add(shoulder(0.895f, 0.085f, 0.14f, "R2", PadButton.R2))
-            addAll(bottomRow(scheme, y = 0.085f, size = 0.10f))
-            add(small(0.34f, 0.92f, 0.10f, "L3", Binding.pad(PadButton.L3.index)))
-            add(small(0.66f, 0.92f, 0.10f, "R3", Binding.pad(PadButton.R3.index)))
+            addAll(faceButtons(scheme, cx = 0.80f, cy = 0.65f, step = 0.19f, size = 0.19f, portrait = false))
+            add(shoulder(0.095f, 0.10f, 0.17f, "L2", PadButton.L2))
+            add(shoulder(0.245f, 0.10f, 0.17f, "L1", PadButton.L1))
+            add(shoulder(0.755f, 0.10f, 0.17f, "R1", PadButton.R1))
+            add(shoulder(0.905f, 0.10f, 0.17f, "R2", PadButton.R2))
+            addAll(bottomRow(scheme, y = 0.10f, size = 0.135f, dx = 0.10f))
+            add(stickClick(0.32f, 0.88f, 0.13f, "L3", PadButton.L3))
+            add(stickClick(0.68f, 0.88f, 0.13f, "R3", PadButton.R3))
         }
         return ControlLayout(name = scheme.name, elements = elements)
     }
 
-    /** Portrait: both thumbs on the lower edge, the shoulders across the top edge. */
+    /** Portrait: both thumbs on the lower edge, the shoulders across the top edge, Select / Start above them. */
     private fun portraitLayout(scheme: ButtonScheme): ControlLayout {
         val elements = buildList {
-            add(ControlElement.dpad(x = 0.19f, y = 0.78f, size = 0.38f))
-            addAll(faceButtons(scheme, cx = 0.72f, cy = 0.70f, step = 0.19f, size = 0.15f, portrait = true))
-            add(shoulder(0.15f, 0.08f, 0.13f, "L2", PadButton.L2))
-            add(shoulder(0.35f, 0.08f, 0.13f, "L1", PadButton.L1))
-            add(shoulder(0.65f, 0.08f, 0.13f, "R1", PadButton.R1))
-            add(shoulder(0.85f, 0.08f, 0.13f, "R2", PadButton.R2))
-            addAll(bottomRow(scheme, y = 0.23f, size = 0.10f))
-            add(small(0.50f, 0.93f, 0.10f, "L3", Binding.pad(PadButton.L3.index)))
-            add(small(0.72f, 0.93f, 0.10f, "R3", Binding.pad(PadButton.R3.index)))
+            add(ControlElement.dpad(x = 0.20f, y = 0.78f, size = 0.38f))
+            addAll(faceButtons(scheme, cx = 0.68f, cy = 0.72f, step = 0.17f, size = 0.18f, portrait = true))
+            add(shoulder(0.13f, 0.08f, 0.15f, "L2", PadButton.L2))
+            add(shoulder(0.345f, 0.08f, 0.15f, "L1", PadButton.L1))
+            add(shoulder(0.655f, 0.08f, 0.15f, "R1", PadButton.R1))
+            add(shoulder(0.87f, 0.08f, 0.15f, "R2", PadButton.R2))
+            addAll(bottomRow(scheme, y = 0.25f, size = 0.10f, dx = 0.17f))
+            add(stickClick(0.44f, 0.95f, 0.12f, "L3", PadButton.L3))
+            add(stickClick(0.62f, 0.95f, 0.12f, "R3", PadButton.R3))
         }
         return ControlLayout(name = scheme.name, elements = elements)
     }
@@ -299,7 +313,7 @@ object Presets {
      * by the current default once (see [ControlsStore.load]), so an update actually shows the new pad instead of the
      * one the player tuned months ago against a layout that no longer exists.
      */
-    const val LAYOUT_VERSION = 2
+    const val LAYOUT_VERSION = 3
 
     /** What a fresh install starts with. */
     val defaultScheme = ButtonScheme.PLAYSTATION

@@ -155,6 +155,7 @@
     <string name="style_circle">Circle</string>
     <string name="style_rounded">Rounded</string>
     <string name="style_square">Square</string>
+    <string name="style_capsule">Capsule</string>
     <string name="editor_duplicate">Duplicate</string>
     <string name="editor_delete">Delete</string>
     <string name="bindings_target_primary">Button</string>
@@ -222,6 +223,7 @@ This usually means the game files do not match this version of the port: it need
     <string name="pause_quick_settings">Graphics and sound</string>
     <string name="pause_logs">Logs</string>
     <string name="pause_quit">Quit the game</string>
+    <string name="pause_scheme">Controller scheme (the pad is reset)</string>
     <string name="pause_continue">Resume</string>
     <string name="credits_title">Thank you!</string>
     <string name="credits_intro">A huge thank-you to this repository — without it the Android port would not exist:</string>

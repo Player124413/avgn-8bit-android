@@ -16,6 +16,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -28,6 +29,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,7 +48,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -57,11 +61,13 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import java.io.File
+import ru.avgn8bit.controls.ButtonScheme
 import ru.avgn8bit.controls.ControlEditorScreen
 import ru.avgn8bit.controls.ControlLayout
 import ru.avgn8bit.controls.ControlOverlay
 import ru.avgn8bit.controls.ControlSink
 import ru.avgn8bit.controls.ControlsStore
+import ru.avgn8bit.controls.Presets
 import ru.avgn8bit.controls.releaseAllControls
 import ru.avgn8bit.ui.AvgnTheme
 import ru.avgn8bit.ui.str
@@ -124,6 +130,7 @@ class GameActivity : ComponentActivity(), ControlSink {
                 val configuration = LocalConfiguration.current
                 val isPortrait = configuration.screenHeightDp > configuration.screenWidthDp
                 var layout by remember(isPortrait) { mutableStateOf(controls.load(isPortrait)) }
+                var scheme by remember { mutableStateOf(Presets.defaultScheme) }
                 var menuOpen by remember { mutableStateOf(false) }
                 var editing by remember { mutableStateOf(false) }
                 var quickSettings by remember { mutableStateOf(false) }
@@ -235,8 +242,13 @@ class GameActivity : ComponentActivity(), ControlSink {
                     }
 
                     if (menuOpen) {
-                        InGameMenu(
+                        PauseScreen(
                             settings = settings,
+                            scheme = scheme,
+                            onScheme = { chosen ->
+                                scheme = chosen
+                                layout = Presets.layout(chosen, isPortrait)
+                            },
                             onResume = { menuOpen = false },
                             onEditControls = { menuOpen = false; editing = true },
                             onQuickSettings = { menuOpen = false; quickSettings = true },
@@ -428,11 +440,23 @@ class GameActivity : ComponentActivity(), ControlSink {
     // ===[ ControlSink ]===
 
     override fun key(vk: Int, down: Boolean) {
+        logInput("key $vk ${if (down) "down" else "up"}")
         runner?.key(vk, down)
     }
 
     override fun pad(button: Int, down: Boolean) {
+        logInput("pad $button ${if (down) "down" else "up"}")
         runner?.padButton(button, down)
+    }
+
+    // The first touches of a session go to the log, so a "the buttons do nothing" report can be answered with facts:
+    // either the app sent the press (and the problem is on the game's side) or it never arrived.
+    private var inputLogLeft = 40
+
+    private fun logInput(what: String) {
+        if (inputLogLeft <= 0) return
+        inputLogLeft--
+        AppLog.write("input: $what" + if (inputLogLeft == 0) " (further input not logged)" else "")
     }
 
     override fun axis(axis: Int, value: Float) {
@@ -549,9 +573,16 @@ object PhysicalInput {
     }
 }
 
+/**
+ * The pause menu. It is drawn here instead of being an [AlertDialog] because a dialog gets whatever height the
+ * platform leaves it, and on a phone held sideways that is almost none: the rows were clipped away and all the
+ * player could see was the single "Resume" button, with no way out of the game.
+ */
 @Composable
-private fun InGameMenu(
+private fun PauseScreen(
     settings: AppSettings,
+    scheme: ButtonScheme,
+    onScheme: (ButtonScheme) -> Unit,
     onResume: () -> Unit,
     onEditControls: () -> Unit,
     onQuickSettings: () -> Unit,
@@ -559,36 +590,96 @@ private fun InGameMenu(
     onLogs: () -> Unit,
     onQuit: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onResume,
-        title = { Text(str(R.string.pause_title)) },
-        text = {
-            Column {
-                MenuRow(str(R.string.pause_resume), onResume)
-                MenuRow(str(R.string.pause_edit_controls), onEditControls)
-                MenuRow(
-                    if (settings.controlsVisible) str(R.string.pause_hide_controls) else str(R.string.pause_show_controls),
-                    onToggleControls
-                )
-                MenuRow(str(R.string.pause_quick_settings), onQuickSettings)
-                MenuRow(str(R.string.pause_logs), onLogs)
-                MenuRow(str(R.string.pause_quit), onQuit, danger = true)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xB3000000))
+            .pointerInput(Unit) { detectTapGestures { onResume() } },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.86f)
+                .widthIn(max = 420.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .background(Color(0xF216161C))
+                .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(22.dp))
+                // A tap on the panel itself must not close the menu through the scrim behind it.
+                .pointerInput(Unit) { detectTapGestures { } }
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 14.dp, vertical = 12.dp)
+        ) {
+            Text(
+                str(R.string.pause_title),
+                color = Color.White,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
+            )
+            PauseRow(str(R.string.pause_resume), emphasised = true, onClick = onResume)
+            PauseRow(str(R.string.pause_edit_controls), onClick = onEditControls)
+            PauseRow(
+                if (settings.controlsVisible) str(R.string.pause_hide_controls) else str(R.string.pause_show_controls),
+                onClick = onToggleControls
+            )
+            PauseRow(str(R.string.pause_quick_settings), onClick = onQuickSettings)
+            PauseRow(str(R.string.pause_logs), onClick = onLogs)
+
+            Text(
+                str(R.string.pause_scheme),
+                color = Color(0xFF9E9EA7),
+                fontSize = 11.sp,
+                modifier = Modifier.padding(start = 4.dp, top = 10.dp, bottom = 4.dp)
+            )
+            Row(Modifier.fillMaxWidth().padding(start = 2.dp)) {
+                for (option in ButtonScheme.entries) {
+                    FilterChip(
+                        selected = option == scheme,
+                        onClick = { onScheme(option) },
+                        label = { Text(option.brand) },
+                        modifier = Modifier.padding(end = 6.dp)
+                    )
+                }
             }
-        },
-        confirmButton = { TextButton(onClick = onResume) { Text(str(R.string.pause_continue)) } }
-    )
+
+            Spacer(Modifier.height(10.dp))
+            PauseRow(str(R.string.pause_quit), danger = true, onClick = onQuit)
+        }
+    }
 }
 
 @Composable
-private fun MenuRow(text: String, onClick: () -> Unit, danger: Boolean = false) {
-    Row(
+private fun PauseRow(
+    text: String,
+    onClick: () -> Unit,
+    danger: Boolean = false,
+    emphasised: Boolean = false
+) {
+    Box(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(vertical = 3.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                when {
+                    danger -> Color(0x33EF5350)
+                    emphasised -> Color(0x2EFFFFFF)
+                    else -> Color(0x14FFFFFF)
+                }
+            )
             .clickable(onClick = onClick)
-            .padding(vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
-        Text(text, color = if (danger) Color(0xFFEF9A9A) else Color.White, fontSize = 16.sp)
+        Text(
+            text = text,
+            color = when {
+                danger -> Color(0xFFFF8A80)
+                emphasised -> Color.White
+                else -> Color(0xFFEDEDF2)
+            },
+            fontSize = 15.sp,
+            fontWeight = if (emphasised || danger) FontWeight.SemiBold else FontWeight.Normal
+        )
     }
 }
 
