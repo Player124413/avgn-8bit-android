@@ -42,6 +42,9 @@ class GameRunner(
 ) {
     companion object {
         private const val TAG = "GameRunner"
+
+        /** Aspect of the game's own layout: it draws its screen for a 4:3 window. */
+        private const val CLASSIC_ASPECT = 4f / 3f
     }
 
     private sealed interface Command {
@@ -84,6 +87,8 @@ class GameRunner(
     private var renderY = 0
     private var renderW = 1
     private var renderH = 1
+    // Last "surface -> frame" line written to the app log, so a resize logs once instead of every frame
+    private var lastRenderTarget: String? = null
     private var lastFrameNs = 0L
     private var fpsFrames = 0
     private var fpsSinceNs = 0L
@@ -343,25 +348,27 @@ class GameRunner(
     private fun computeRenderTarget(integerScaling: Boolean, widescreen: Boolean) {
         val surfaceW = max(1, egl.width)
         val surfaceH = max(1, egl.height)
-        val game = Native.gameSize
 
-        if (widescreen || game == null || game.width <= 0 || game.height <= 0) {
+        if (widescreen) {
+            // The game lays itself out for whatever window it is given, so hand it the whole screen.
             renderW = surfaceW
             renderH = surfaceH
             renderX = 0
             renderY = 0
+            logRenderTarget(surfaceW, surfaceH)
             return
         }
 
-        val gameAspect = game.width.toFloat() / game.height.toFloat()
+        // The game's own layout is 4:3. The size it reports (gen8 defaultWindow) comes from the Vita game data and is
+        // neither 4:3 nor the aspect of the art, so deriving the frame from it squeezed the picture horizontally.
         var w: Int
         var h: Int
-        if (surfaceW.toFloat() / surfaceH > gameAspect) {
+        if (surfaceW.toFloat() / surfaceH.toFloat() > CLASSIC_ASPECT) {
             h = surfaceH
-            w = (h * gameAspect).toInt()
+            w = (h * CLASSIC_ASPECT).toInt()
         } else {
             w = surfaceW
-            h = (w / gameAspect).toInt()
+            h = (w / CLASSIC_ASPECT).toInt()
         }
         if (integerScaling && w > 0 && h > 0) {
             val scale = min(surfaceW / w, surfaceH / h)
@@ -374,6 +381,14 @@ class GameRunner(
         renderH = h.coerceAtLeast(1)
         renderX = (surfaceW - renderW) / 2
         renderY = (surfaceH - renderH) / 2
+        logRenderTarget(surfaceW, surfaceH)
+    }
+
+    private fun logRenderTarget(surfaceW: Int, surfaceH: Int) {
+        val line = "$surfaceW x $surfaceH -> $renderW x $renderH at $renderX,$renderY"
+        if (line == lastRenderTarget) return
+        lastRenderTarget = line
+        AppLog.write("Render target: $line (game reports ${Native.gameSize})")
     }
 
     private fun ensureFramebuffer(force: Boolean = false) {

@@ -204,6 +204,10 @@ struct GLRenderer {
     uint32_t originalTpagCount;
     uint32_t originalSpriteCount;
 
+    // Font indices already described in the log (see glResolveFontState / drawText), bit 0 = font 0
+    uint32_t loggedFonts;
+    uint32_t loggedGlyphRects;
+
     bool colorWriteR, colorWriteG, colorWriteB, colorWriteA;
 
     // GML surfaces (each is an FBO with a backing color texture)

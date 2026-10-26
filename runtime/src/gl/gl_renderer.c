@@ -4772,6 +4772,26 @@ static bool glResolveFontState(GLRenderer* gl, DataWin* dw, Font* font, GlFontSt
     } else if (font->spriteIndex >= 0 && dw->sprt.count > (uint32_t) font->spriteIndex) {
         state->spriteFontSprite = &dw->sprt.sprites[font->spriteIndex];
     }
+
+    // One line per font the first time it is drawn, with everything that decides how its glyphs come out: the page it
+    // samples, the texture that page ended up as, and the GL state the draw inherits. Text drawn as solid blocks is
+    // either a page with no alpha or a blend state that ignores it, and both show up right here.
+    int32_t fontIndex = (int32_t) (font - dw->font.fonts);
+    if (fontIndex >= 0 && fontIndex < 32 && (gl->loggedFonts & (1u << fontIndex)) == 0) {
+        gl->loggedFonts |= 1u << fontIndex;
+        GLint activeUnit = 0, boundTexture = 0, blendEquation = 0;
+        glGetIntegerv(GL_ACTIVE_TEXTURE, &activeUnit);
+        glGetIntegerv(GL_TEXTURE_BINDING_2D, &boundTexture);
+        glGetIntegerv(GL_BLEND_EQUATION, &blendEquation); // ES2 and ES3 name it the same
+        int32_t tpagPage = state->fontTpag != nullptr ? (int32_t) state->fontTpag->texturePageId : -1;
+        logInfo("GL: font %d '%s' spriteFont=%d tpag=%d page=%d tex=%u %dx%d blend=%d(cached %d, eq 0x%x) unit=%d bound=%u alphaTest=%d ref=%.2f\n",
+                fontIndex, font->name != nullptr ? font->name : "?",
+                font->isSpriteFont ? 1 : 0, font->tpagIndex, tpagPage,
+                (unsigned) state->texId, state->texW, state->texH,
+                glIsEnabled(GL_BLEND) ? 1 : 0, gl->blendEnable ? 1 : 0, (unsigned) blendEquation,
+                (int) (activeUnit - GL_TEXTURE0), (unsigned) boundTexture,
+                gl->alphaTestEnable ? 1 : 0, (double) gl->alphaTestRef);
+    }
     return true;
 }
 
@@ -4944,6 +4964,18 @@ static void drawText(
                     if (glResolveGlyph(gl, dw, &fontState, glyph, cursorX, cursorY, &glyphTexId, &u0, &v0, &u1, &v1, &localX0, &localY0)) {
                         float localX1 = localX0 + (float) glyph->sourceWidth;
                         float localY1 = localY0 + (float) glyph->sourceHeight;
+
+                        // The first glyph of every font, so a log tells whether the quad samples the glyph atlas at the
+                        // right place (uv) with the right texture, instead of the whole cell coming out one colour.
+                        int32_t glyphFontIndex = (int32_t) (font - dw->font.fonts);
+                        if (glyphFontIndex >= 0 && glyphFontIndex < 32 && (gl->loggedGlyphRects & (1u << glyphFontIndex)) == 0) {
+                            gl->loggedGlyphRects |= 1u << glyphFontIndex;
+                            logInfo("GL: font %d glyph %u tex=%u uv %.5f,%.5f..%.5f,%.5f at %.1f,%.1f cell %ux%u\n",
+                                    glyphFontIndex, (unsigned) glyph->character, (unsigned) glyphTexId,
+                                    (double) u0, (double) v0, (double) u1, (double) v1,
+                                    (double) localX0, (double) localY0, (unsigned) glyph->sourceWidth,
+                                    (unsigned) glyph->sourceHeight);
+                        }
 
                         drawMultiColoredTextureWithTransform(
                             gl,
@@ -5670,6 +5702,11 @@ static int32_t glCreateTpagFromPixels(Renderer* renderer, const uint8_t* rgba, i
     tpag->boundingWidth = (uint16_t) w;
     tpag->boundingHeight = (uint16_t) h;
     tpag->texturePageId = (int16_t) pageId;
+
+    // One line per dynamic page: it pairs the atlas the CPU built with the texture the GPU ended up sampling.
+    GLint uploadError = glGetError();
+    logInfo("GL: dynamic tpag %d -> page %d tex %u %dx%d (upload error 0x%x)\n",
+            (int) tpagIndex, (int) pageId, (unsigned) newTexId, w, h, (unsigned) uploadError);
     return (int32_t) tpagIndex;
 }
 

@@ -36,6 +36,12 @@ void GLCommon_init(Renderer* renderer) {
     GLRenderer* gl = (GLRenderer*) renderer; 
     DataWin* dataWin = renderer->dataWin;
 
+    // The host usually picks the texture format before the first upload (Android sets GL_RGBA after
+    // GLRenderer_create()); the 1x1 white pixel below is uploaded before that, and an internal format of 0 is not a
+    // valid GL enum: GLES rejects the upload and every primitive (rectangles, lines, unfilled sprites) then samples
+    // an incomplete texture. Default to plain RGBA, the format every path in this file already reads and writes.
+    if (gl->textureFormat == 0) gl->textureFormat = GL_RGBA;
+
     Matrix4f world;
     Matrix4f_identity(&world);
     renderer->gmlMatrices[MATRIX_WORLD] = world;

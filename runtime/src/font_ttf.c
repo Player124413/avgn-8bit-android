@@ -116,6 +116,9 @@ int32_t FontTTF_add(Runner* runner, const char* path, float size, bool bold, boo
     int32_t usedH = y + lineH + pad, atlasH = 8;
     while (atlasH < usedH) atlasH <<= 1;
 
+    // Coverage statistics for the log: a font that rasterised into solid blocks is the first thing to rule out when
+    // text shows up as rectangles on a device.
+    int64_t inkTexels = 0, cellTexels = 0;
     uint8_t* rgba = (uint8_t*) calloc((size_t) atlasW * atlasH, 4);
     for (uint32_t i = 0; i < count; i++) {
         RasterGlyph* g = &glyphs[i];
@@ -125,8 +128,13 @@ int32_t FontTTF_add(Runner* runner, const char* path, float size, bool bold, boo
             if (ty < g->atlasY || ty >= g->atlasY + lineH || ty >= atlasH) continue;
             for (int32_t gx = 0; gx < g->bitmapW; gx++) {
                 uint8_t* p = rgba + ((size_t) ty * atlasW + g->atlasX + gx) * 4;
-                p[0] = p[1] = p[2] = 255;
-                p[3] = g->alpha[gy * g->bitmapW + gx];
+                // Colour and alpha both carry the coverage. Mono rendering only produces 0/255, so a plain
+                // (src_alpha, inv_src_alpha) blend draws the same glyph, and a premultiplied (one, inv_src_alpha) one
+                // no longer paints the transparent part of the cell as a solid white block.
+                uint8_t v = g->alpha[gy * g->bitmapW + gx];
+                p[0] = p[1] = p[2] = p[3] = v;
+                cellTexels++;
+                if (v != 0) inkTexels++;
             }
         }
     }
@@ -178,7 +186,8 @@ int32_t FontTTF_add(Runner* runner, const char* path, float size, bool bold, boo
     }
     free(glyphs);
     Font_buildGlyphLUT(font);
-    logInfo("font_add: '%s' %.1fpt -> font %u (%u glyphs, line %d, atlas %dx%d) in %.1f ms (file read %.1f ms, %d KiB)\n", path, size, fontIndex, count, lineH, atlasW, atlasH,
+    logInfo("font_add: '%s' %.1fpt -> font %u (%u glyphs, line %d, atlas %dx%d, ink %lld/%lld texels) in %.1f ms (file read %.1f ms, %d KiB)\n",
+            path, size, fontIndex, count, lineH, atlasW, atlasH, (long long) inkTexels, (long long) cellTexels,
             (double) (nowNanos() - startNs) / 1e6, (double) readNs / 1e6, (int) (fileSize >> 10));
     return (int32_t) fontIndex;
 }
