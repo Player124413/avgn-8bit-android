@@ -46,6 +46,7 @@ import kotlinx.coroutines.withContext
 import ru.avgn8bit.R
 import ru.avgn8bit.screens.AboutScreen
 import ru.avgn8bit.screens.ControlsScreen
+import ru.avgn8bit.screens.CreditsDialog
 import ru.avgn8bit.screens.ImportScreen
 import ru.avgn8bit.screens.SettingsScreen
 import ru.avgn8bit.ui.AvgnPanel
@@ -64,6 +65,9 @@ class MainActivity : ComponentActivity() {
                 fun ready() = GameStorage.isReady(context) || BundledGame.isAvailable(context)
                 var gameReady by remember { mutableStateOf(ready()) }
                 var screen by remember { mutableStateOf(if (gameReady) Screen.HOME else Screen.IMPORT) }
+                // Shown once, on the first start of the launcher: thanks to the Vita port this one is built on and a
+                // pointer to the channel. Reachable again from About.
+                var showCredits by remember { mutableStateOf(!settings.creditsSeen) }
 
                 BackHandler(enabled = screen != Screen.HOME) { screen = Screen.HOME }
 
@@ -103,7 +107,17 @@ class MainActivity : ComponentActivity() {
                             onBack = { screen = Screen.HOME }
                         )
 
-                        Screen.ABOUT -> AboutScreen(onBack = { screen = Screen.HOME })
+                        Screen.ABOUT -> AboutScreen(
+                            onBack = { screen = Screen.HOME },
+                            onShowCredits = { showCredits = true }
+                        )
+                    }
+
+                    if (showCredits) {
+                        CreditsDialog(onDismiss = {
+                            showCredits = false
+                            settings.creditsSeen = true
+                        })
                     }
                 }
             }

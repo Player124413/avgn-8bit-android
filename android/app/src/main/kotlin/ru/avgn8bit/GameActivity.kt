@@ -261,7 +261,8 @@ class GameActivity : ComponentActivity(), ControlSink {
                             onLayoutChange = { layout = it },
                             onDone = { editing = false },
                             modifier = Modifier.fillMaxSize(),
-                            title = if (isPortrait) str(R.string.controls_title_portrait) else str(R.string.controls_title_landscape)
+                            title = if (isPortrait) str(R.string.controls_title_portrait) else str(R.string.controls_title_landscape),
+                            portrait = isPortrait
                         )
                     }
 

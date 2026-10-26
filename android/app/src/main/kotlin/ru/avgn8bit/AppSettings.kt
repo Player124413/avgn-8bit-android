@@ -164,6 +164,20 @@ class AppSettings(context: Context) {
             putBoolean("includeVideos", value)
         }
 
+    // ===[ Launcher ]===
+
+    /**
+     * The thank-you window is shown the first time the launcher starts (it names the Vita port this one is built on
+     * and the author's channel) and can be opened again from About. One flag, so it never nags.
+     */
+    private var creditsSeenState by mutableStateOf(prefs.getBoolean("creditsSeen", false))
+    var creditsSeen: Boolean
+        get() = creditsSeenState
+        set(value) {
+            creditsSeenState = value
+            putBoolean("creditsSeen", value)
+        }
+
     fun runtimeSettings() = RuntimeSettings(
         filter = filter,
         integerScaling = integerScaling,

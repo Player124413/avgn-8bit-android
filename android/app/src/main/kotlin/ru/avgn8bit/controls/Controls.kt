@@ -162,64 +162,75 @@ data class ControlLayout(
     fun element(id: String?) = elements.firstOrNull { it.id == id }
 }
 
-/** Ready-made layouts. AVGN 8-bit is a Mega Man style game: move, jump, shoot, and one more button for items. */
+/**
+ * The three button schemes the launcher offers. The layout behind them is the same — a D-Pad, the three action
+ * buttons the game uses (jump, shoot, item) and Start/Back — only the names on the buttons change, so the player can
+ * have the buttons of the controller they are used to. Whatever the scheme, a button sends both a gamepad button and a
+ * key (see the note at the top of this file), which is all the game itself ever sees.
+ */
+enum class ButtonScheme(@StringRes val labelRes: Int) {
+    PLAYSTATION(R.string.preset_playstation),
+    XBOX(R.string.preset_xbox),
+    PC(R.string.preset_pc);
+
+    /** Names of the action buttons, in the order jump, shoot, item. */
+    val actionLabels: List<String>
+        get() = when (this) {
+            PLAYSTATION -> listOf("✕", "○", "□")
+            XBOX -> listOf("A", "B", "X")
+            PC -> listOf("Z", "X", "C")
+        }
+
+}
+
+/** Ready-made layouts: one per [ButtonScheme], in the two orientations. */
 object Presets {
     private const val JUMP_KEY = 90      // Z
     private const val SHOOT_KEY = 88     // X
     private const val ITEM_KEY = 67      // C
+    private const val START_KEY = 13     // Enter
+    private const val BACK_KEY = 27      // Escape
 
-    /** Three buttons: jump (A), shoot (B), item (X) — the modern control scheme of the game. */
-    fun avgnThreeButtons(): ControlLayout = ControlLayout(
-        name = "AVGN 8-bit",
-        elements = listOf(
-            ControlElement.dpad(x = 0.15f, y = 0.70f, size = 0.42f),
-            ControlElement.button(0.845f, 0.735f, 0.20f, "A", listOf(Binding.pad(0), Binding.key(JUMP_KEY)), 0.50f),
-            ControlElement.button(0.700f, 0.855f, 0.20f, "B", listOf(Binding.pad(1), Binding.key(SHOOT_KEY)), 0.50f),
-            ControlElement.button(0.665f, 0.615f, 0.165f, "X", listOf(Binding.pad(2), Binding.key(ITEM_KEY)), 0.42f),
-            ControlElement.button(0.955f, 0.095f, 0.115f, "≡", listOf(Binding.pad(9), Binding.key(13)), 0.30f),
-            ControlElement.button(0.865f, 0.095f, 0.10f, "Esc", listOf(Binding.pad(8), Binding.key(27)), 0.24f)
-        )
-    )
+    /** The layout for a scheme, sized for the orientation the screen is in. */
+    fun layout(scheme: ButtonScheme, portrait: Boolean): ControlLayout =
+        if (portrait) portraitLayout(scheme) else landscapeLayout(scheme)
 
-    /** The NES layout the game also ships with: two buttons and a D-Pad. */
-    fun nes(): ControlLayout = ControlLayout(
-        name = "NES (2 buttons)",
-        elements = listOf(
-            ControlElement.dpad(x = 0.15f, y = 0.70f, size = 0.42f),
-            ControlElement.button(0.815f, 0.790f, 0.21f, "A", listOf(Binding.pad(0), Binding.key(JUMP_KEY)), 0.50f),
-            ControlElement.button(0.660f, 0.855f, 0.21f, "B", listOf(Binding.pad(1), Binding.key(SHOOT_KEY)), 0.50f),
-            ControlElement.button(0.955f, 0.095f, 0.115f, "≡", listOf(Binding.pad(9), Binding.key(13)), 0.30f)
+    /** D-Pad on the left, the three action buttons under the right thumb, Start and Back in the top right corner. */
+    private fun landscapeLayout(scheme: ButtonScheme): ControlLayout {
+        val (jump, shoot, item) = scheme.actionLabels
+        return ControlLayout(
+            name = scheme.name,
+            elements = listOf(
+                ControlElement.dpad(x = 0.15f, y = 0.70f, size = 0.42f),
+                ControlElement.button(0.845f, 0.735f, 0.20f, jump, listOf(Binding.pad(0), Binding.key(JUMP_KEY)), 0.50f),
+                ControlElement.button(0.700f, 0.855f, 0.20f, shoot, listOf(Binding.pad(1), Binding.key(SHOOT_KEY)), 0.50f),
+                ControlElement.button(0.665f, 0.615f, 0.165f, item, listOf(Binding.pad(2), Binding.key(ITEM_KEY)), 0.42f),
+                ControlElement.button(0.955f, 0.095f, 0.115f, "≡", listOf(Binding.pad(9), Binding.key(START_KEY)), 0.30f),
+                ControlElement.button(0.865f, 0.095f, 0.10f, "Esc", listOf(Binding.pad(8), Binding.key(BACK_KEY)), 0.24f)
+            )
         )
-    )
-
-    /** Analogue stick on the left (also works as a D-Pad) and the three buttons. */
-    fun stickLayout(): ControlLayout = ControlLayout(
-        name = "Stick + buttons",
-        elements = listOf(
-            ControlElement.stick(x = 0.16f, y = 0.70f, size = 0.46f),
-            ControlElement.button(0.845f, 0.735f, 0.20f, "A", listOf(Binding.pad(0), Binding.key(JUMP_KEY)), 0.50f),
-            ControlElement.button(0.700f, 0.855f, 0.20f, "B", listOf(Binding.pad(1), Binding.key(SHOOT_KEY)), 0.50f),
-            ControlElement.button(0.665f, 0.615f, 0.165f, "X", listOf(Binding.pad(2), Binding.key(ITEM_KEY)), 0.42f),
-            ControlElement.button(0.955f, 0.095f, 0.115f, "≡", listOf(Binding.pad(9), Binding.key(13)), 0.30f)
-        )
-    )
+    }
 
     /** Both thumbs on the screen edge, for phones held in portrait. */
-    fun portrait(): ControlLayout = ControlLayout(
-        name = "AVGN 8-bit (portrait)",
-        elements = listOf(
-            ControlElement.dpad(x = 0.19f, y = 0.80f, size = 0.40f),
-            ControlElement.button(0.80f, 0.745f, 0.19f, "A", listOf(Binding.pad(0), Binding.key(JUMP_KEY)), 0.50f),
-            ControlElement.button(0.665f, 0.865f, 0.19f, "B", listOf(Binding.pad(1), Binding.key(SHOOT_KEY)), 0.50f),
-            ControlElement.button(0.885f, 0.885f, 0.155f, "X", listOf(Binding.pad(2), Binding.key(ITEM_KEY)), 0.42f),
-            ControlElement.button(0.90f, 0.545f, 0.11f, "≡", listOf(Binding.pad(9), Binding.key(13)), 0.30f)
+    private fun portraitLayout(scheme: ButtonScheme): ControlLayout {
+        val (jump, shoot, item) = scheme.actionLabels
+        return ControlLayout(
+            name = scheme.name,
+            elements = listOf(
+                ControlElement.dpad(x = 0.19f, y = 0.80f, size = 0.40f),
+                ControlElement.button(0.80f, 0.745f, 0.19f, jump, listOf(Binding.pad(0), Binding.key(JUMP_KEY)), 0.50f),
+                ControlElement.button(0.665f, 0.865f, 0.19f, shoot, listOf(Binding.pad(1), Binding.key(SHOOT_KEY)), 0.50f),
+                ControlElement.button(0.885f, 0.885f, 0.155f, item, listOf(Binding.pad(2), Binding.key(ITEM_KEY)), 0.42f),
+                ControlElement.button(0.90f, 0.545f, 0.11f, "≡", listOf(Binding.pad(9), Binding.key(START_KEY)), 0.30f)
+            )
         )
-    )
+    }
 
-    fun empty(): ControlLayout = ControlLayout(name = "Empty", elements = emptyList())
+    /** What a fresh install starts with. */
+    val defaultScheme = ButtonScheme.PLAYSTATION
 
-    fun defaultLandscape(): ControlLayout = avgnThreeButtons()
-    fun defaultPortrait(): ControlLayout = portrait()
+    fun defaultLandscape(): ControlLayout = layout(defaultScheme, portrait = false)
+    fun defaultPortrait(): ControlLayout = layout(defaultScheme, portrait = true)
 }
 
 /** Loads and saves the layouts. One per screen orientation, so both can be tuned separately. */

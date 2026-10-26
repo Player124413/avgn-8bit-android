@@ -124,6 +124,9 @@
     <string name="about_body_controls">The buttons, the D-Pad and the stick are drawn on screen. They can be dragged, resized, made transparent and bound to any gamepad button or key. The portrait and landscape layouts are stored separately. In game, the Controls menu opens the same editor.</string>
     <string name="about_section_thanks">Credits</string>
     <string name="about_body_thanks">Butterscotch — the free GameMaker runtime (github.com/ButterscotchRunner/Butterscotch), AGPL-3.0. FreeType fonts (FTL). The game and its content belong to their owners — this port does not distribute the game and is not affiliated with its authors.</string>
+    <string name="about_body_credit_vita">This Android port exists thanks to the PS Vita port by conop-8888: github.com/conop-8888/avgn-8bit-vita. Without it there would be no Android build.</string>
+    <string name="about_body_credit_channel">My Telegram channel with the new builds: t.me/player1444ports</string>
+    <string name="about_show_credits">Show the thank-you window</string>
     <string name="about_section_license">License</string>
     <string name="about_body_license">The port is distributed under AGPL-3.0, like the runtime it uses. The full text is in the project repository (LICENSE.runtime). By loading the game files you use your own copy.</string>
     <string name="about_footer">If something does not start, send the log: Settings → Share the log.</string>
@@ -132,10 +135,9 @@
     <string name="editor_title">Controls</string>
     <string name="editor_elements_count">%1$d elements</string>
     <string name="editor_preset">Preset</string>
-    <string name="preset_avgn">AVGN — 3 buttons</string>
-    <string name="preset_nes">NES — 2 buttons</string>
-    <string name="preset_stick">Stick + buttons</string>
-    <string name="preset_empty">Empty layout</string>
+    <string name="preset_playstation">PlayStation buttons (✕ ○ □)</string>
+    <string name="preset_xbox">Xbox buttons (A B X)</string>
+    <string name="preset_pc">PC buttons (Z X C)</string>
     <string name="editor_panel_hidden">The panel is hidden — elements can still be dragged</string>
     <string name="editor_expand">Expand</string>
     <string name="editor_collapse">Collapse</string>
@@ -222,5 +224,9 @@ This usually means the game files do not match this version of the port: it need
     <string name="pause_logs">Logs</string>
     <string name="pause_quit">Quit the game</string>
     <string name="pause_continue">Resume</string>
+    <string name="credits_title">Thank you!</string>
+    <string name="credits_intro">A huge thank-you to this repository — without it the Android port would not exist:</string>
+    <string name="credits_channel">My Telegram channel, where the new builds are posted:</string>
+    <string name="credits_footer">Have fun with the game, and send the logs if anything does not work: Settings → Share the log.</string>
     <string name="quick_crt_hint">CRT adds a television look on top of the game. The game already draws its own — turn this on if you like it.</string>
 </resources>

@@ -46,8 +46,13 @@ This repository holds two builds of *Angry Video Game Nerd 8-bit*: the original 
 * **Игра** импортируется в приложении папкой или zip-архивом. Можно собрать APK сразу с игрой внутри:
   `./gradlew assembleRelease -PbundleGame=game.zip` или запустить workflow с ссылкой на архив
   (`game_zip_url`).
+* **Обновления** ставятся поверх предыдущей версии: файлы игры и настройки остаются, удалять приложение
+  не нужно (один ключ подписи на все сборки + растущий `versionCode`, см. «Обновления» в `android/README.md`).
 * **Сборка и первый запуск**: [`android/README.md`](android/README.md) (по-русски; шаги одинаковы для любой
   системы — Android Studio или `./gradlew`).
+* **Благодарности**: Android-порт был бы невозможен без Vita-порта
+  [`conop-8888/avgn-8bit-vita`](https://github.com/conop-8888/avgn-8bit-vita) — он и стал основой рантайма.
+  Новые сборки выходят в Telegram-канале [@player1444ports](https://t.me/player1444ports).
 
 <!-- -->
 

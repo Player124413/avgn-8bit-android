@@ -69,7 +69,9 @@ fun ControlEditorScreen(
     onLayoutChange: (ControlLayout) -> Unit,
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
-    title: String? = null
+    title: String? = null,
+    /** The preset geometries differ per orientation; this is the one the editor is being shown in. */
+    portrait: Boolean = false
 ) {
     val titleText = title ?: str(R.string.editor_title)
     var selectedId by remember { mutableStateOf<String?>(null) }
@@ -113,19 +115,16 @@ fun ControlEditorScreen(
                     Text(str(R.string.editor_preset))
                     Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
                 }
+                // The three schemes of the launcher, nothing else: the same layout, the buttons named after the
+                // controller the player thinks in.
                 DropdownMenu(expanded = presetMenu, onDismissRequest = { presetMenu = false }) {
-                    DropdownMenuItem(text = { Text(str(R.string.preset_avgn)) }, onClick = {
-                        onLayoutChange(Presets.avgnThreeButtons()); selectedId = null; presetMenu = false
-                    })
-                    DropdownMenuItem(text = { Text(str(R.string.preset_nes)) }, onClick = {
-                        onLayoutChange(Presets.nes()); selectedId = null; presetMenu = false
-                    })
-                    DropdownMenuItem(text = { Text(str(R.string.preset_stick)) }, onClick = {
-                        onLayoutChange(Presets.stickLayout()); selectedId = null; presetMenu = false
-                    })
-                    DropdownMenuItem(text = { Text(str(R.string.preset_empty)) }, onClick = {
-                        onLayoutChange(Presets.empty()); selectedId = null; presetMenu = false
-                    })
+                    for (scheme in ButtonScheme.entries) {
+                        DropdownMenuItem(text = { Text(str(scheme.labelRes)) }, onClick = {
+                            onLayoutChange(Presets.layout(scheme, portrait))
+                            selectedId = null
+                            presetMenu = false
+                        })
+                    }
                 }
             }
             Spacer(Modifier.width(8.dp))

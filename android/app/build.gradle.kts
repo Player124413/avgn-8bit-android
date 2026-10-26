@@ -8,6 +8,22 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+// ===[ Updates without uninstalling ]===
+// Android only replaces an installed app when the new APK has the same signing key *and* a versionCode that is not
+// lower. Both are therefore the same for every build of the port: one key in the repository (see
+// keystore/README.md), shared by the debug and the release build, and a versionCode that counts minutes since
+// 2025-01-01, so it grows for CI builds and local builds alike. `-PversionCode=` / `-PversionName=` override them.
+val versionCodeEpochMinutes = 28_900_000L // 2025-01-01T00:00:00Z, in minutes since the Unix epoch
+val buildVersionCode: Int = providers.gradleProperty("versionCode").orNull?.toIntOrNull()
+    ?: ((System.currentTimeMillis() / 60_000L) - versionCodeEpochMinutes).toInt()
+val buildVersionName: String = providers.gradleProperty("versionName").orNull ?: "1.11.0+$buildVersionCode"
+
+val sharedKeystoreFile: File = providers.gradleProperty("keystore").orNull?.let { file(it) }
+    ?: rootProject.file("keystore/avgn8bit-update.p12")
+val sharedKeystorePassword: String = providers.gradleProperty("keystorePassword").orNull ?: "avgn8bit"
+val sharedKeyAlias: String = providers.gradleProperty("keyAlias").orNull ?: "avgn8bit"
+val sharedKeyPassword: String = providers.gradleProperty("keyPassword").orNull ?: "avgn8bit"
+
 android {
     namespace = "ru.avgn8bit"
     compileSdk = 35
@@ -17,8 +33,8 @@ android {
         applicationId = "ru.avgn8bit"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = buildVersionCode
+        versionName = buildVersionName
 
         ndk {
             // Real phones. (The emulator's x86_64 ABI can be enabled locally by adding it here.)
@@ -33,16 +49,27 @@ android {
         }
     }
 
+    signingConfigs {
+        // The one key every build uses (keystore/README.md): an APK that is signed with it installs over any other
+        // build of the port, keeping the imported game files. `-Pkeystore=` etc. replace it for a private fork.
+        create("shared") {
+            storeFile = sharedKeystoreFile
+            storePassword = sharedKeystorePassword
+            keyAlias = sharedKeyAlias
+            keyPassword = sharedKeyPassword
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
             isShrinkResources = false
-            // Signed with the debug key so the APK installs straight from a browser download. Replace with your
-            // own keystore (see android/README.md) if you publish builds.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("shared")
         }
         debug {
             isMinifyEnabled = false
+            // Same key as the release build, so switching between them does not need an uninstall either.
+            signingConfig = signingConfigs.getByName("shared")
         }
     }
 

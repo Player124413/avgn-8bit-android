@@ -35,6 +35,7 @@ fun ControlsScreen(settings: AppSettings, onBack: () -> Unit) {
         onLayoutChange = { layout = it },
         onDone = onBack,
         modifier = Modifier.fillMaxSize(),
-        title = if (isPortrait) str(R.string.controls_title_portrait) else str(R.string.controls_title_landscape)
+        title = if (isPortrait) str(R.string.controls_title_portrait) else str(R.string.controls_title_landscape),
+        portrait = isPortrait
     )
 }

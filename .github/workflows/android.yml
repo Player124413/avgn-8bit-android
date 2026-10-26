@@ -168,7 +168,7 @@ jobs:
           set -o pipefail
           ./gradlew --no-daemon --stacktrace assembleDebug ${{ steps.bundle.outputs.args }} 2>&1 | tee build-debug.log
 
-      - name: Build (release, debug-signed)
+      - name: Build (release)
         working-directory: android
         run: |
           set -o pipefail
@@ -197,6 +197,22 @@ jobs:
           BUNDLED: ${{ steps.bundle.outputs.bundled }}
         run: |
           set -e
+          # An update installs over the previous build only when the signing key matches and the versionCode does not
+          # go backwards; both are one-off mistakes that only show up on a phone, so check them here.
+          apksigner="$ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner"
+          badging="$ANDROID_SDK_ROOT/build-tools/35.0.0/aapt2"
+          for apk in artifacts/*.apk; do
+            "$apksigner" verify --print-certs "$apk" | awk -v apk="$apk" '/SHA-256 digest/ {print "  " apk " signed by " $NF}'
+            "$badging" dump badging "$apk" 2>/dev/null | head -1 || true
+          done
+          keys=$(for apk in artifacts/*.apk; do
+            "$apksigner" verify --print-certs "$apk" | awk -F': ' '/SHA-256 digest/ {print $2}'
+          done | sort -u | grep -c . || true)
+          if [ "$keys" != "1" ]; then
+            echo "::error::the debug and release APKs are signed with different keys: an update would need an uninstall"
+            exit 1
+          fi
+
           for apk in artifacts/*.apk; do
             echo "== $apk ($(du -h "$apk" | cut -f1))"
             unzip -l "$apk" > /tmp/list.txt

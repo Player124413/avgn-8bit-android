@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -23,7 +24,7 @@ import ru.avgn8bit.R
 import ru.avgn8bit.ui.str
 
 @Composable
-fun AboutScreen(onBack: () -> Unit) {
+fun AboutScreen(onBack: () -> Unit, onShowCredits: () -> Unit = {}) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -49,6 +50,12 @@ fun AboutScreen(onBack: () -> Unit) {
 
         Section(str(R.string.about_section_thanks)) {
             Body(str(R.string.about_body_thanks))
+            Spacer(Modifier.height(8.dp))
+            Body(str(R.string.about_body_credit_vita))
+            Spacer(Modifier.height(4.dp))
+            Body(str(R.string.about_body_credit_channel))
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(onClick = onShowCredits) { Text(str(R.string.about_show_credits)) }
         }
 
         Section(str(R.string.about_section_license)) {
