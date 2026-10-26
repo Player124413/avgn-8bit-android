@@ -24,3 +24,10 @@ It crashes right away: you’re missing libshacccg.suprx. Run ShaRKBR33D once, w
 “Game files are missing”: the folder has to be exactly ux0:data/AVGN8bit, with data_vita.win right inside it.
 The patcher complains about your version: in Steam, verify the game files and run it again.
 Saves live in ux0:data/AVGN8bit.
+
+---
+
+Android port (порт для Android)
+There is an Android port in `android/` — same runtime, same game files, with on-screen touch controls and a full layout editor. See `android/README.md` (in Russian) for the build steps, or grab an APK from the Actions tab.
+
+В репозитории есть порт для Android (`android/`): тот же рантайм, те же файлы игры, сенсорное управление с полноценным редактором раскладки. Как собрать — `android/README.md`; готовый APK можно взять во вкладке Actions (workflow «Android APK»).

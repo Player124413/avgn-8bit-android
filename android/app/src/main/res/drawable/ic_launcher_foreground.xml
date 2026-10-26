@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A NES cartridge with a pixel "8" on the label. 108dp viewport, artwork inside the 66dp safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- cartridge shell -->
+    <path
+        android:fillColor="#E53935"
+        android:pathData="M37,28 L71,28 A4,4 0 0 1 75,32 L75,78 A4,4 0 0 1 71,82 L37,82 A4,4 0 0 1 33,78 L33,32 A4,4 0 0 1 37,28 Z" />
+    <!-- label -->
+    <path
+        android:fillColor="#0B0B0F"
+        android:pathData="M39,34 L69,34 A2,2 0 0 1 71,36 L71,62 A2,2 0 0 1 69,64 L39,64 A2,2 0 0 1 37,62 L37,36 A2,2 0 0 1 39,34 Z" />
+    <!-- pixel 8: 3x5 cells of 4 units, centred on the label -->
+    <group>
+        <path android:fillColor="#E53935" android:pathData="M48,38 L60,38 L60,42 L48,42 Z" />
+        <path android:fillColor="#E53935" android:pathData="M48,42 L52,42 L52,46 L48,46 Z" />
+        <path android:fillColor="#E53935" android:pathData="M56,42 L60,42 L60,46 L56,46 Z" />
+        <path android:fillColor="#E53935" android:pathData="M48,46 L60,46 L60,50 L48,50 Z" />
+        <path android:fillColor="#E53935" android:pathData="M48,50 L52,50 L52,54 L48,54 Z" />
+        <path android:fillColor="#E53935" android:pathData="M56,50 L60,50 L60,54 L56,54 Z" />
+        <path android:fillColor="#E53935" android:pathData="M48,54 L60,54 L60,58 L48,58 Z" />
+    </group>
+    <!-- cartridge contacts -->
+    <path android:fillColor="#0B0B0F" android:pathData="M40,70 L50,70 L50,74 L40,74 Z" />
+    <path android:fillColor="#0B0B0F" android:pathData="M52,70 L58,70 L58,74 L52,74 Z" />
+    <path android:fillColor="#0B0B0F" android:pathData="M60,70 L68,70 L68,74 L60,74 Z" />
+</vector>
