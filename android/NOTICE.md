@@ -29,6 +29,10 @@
 Код порта (Kotlin + CMake + правки в `runtime/`) распространяется по той же **AGPL-3.0**, потому что
 является производной работой от Butterscotch.
 
+Чего из Vita-версии здесь **нет**: vitaGL (LGPL-3.0, OpenGL-реализация для GXM; на Android вместо неё
+обычный GLES 3.0) и SceAvPlayer (аппаратный декодер видео; видео в Android-сборке отключено).
+Поэтому `LICENSE-vitaGL-LGPL-3.0` и `LICENSE-runtime-AGPL-3.0` из VPK нужны только Vita-сборке.
+
 `android/app/src/main/kotlin/ru/avgn8bit/GameGL.kt` — EGL-обёртка, переработанная из
 `src/android/frontend/.../ButterscotchEGL.kt` апстрима (та же схема «контекст живёт дольше окна»,
 добавлены `teardown`/`hasSurface`/`updateSize`).
