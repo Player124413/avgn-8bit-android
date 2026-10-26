@@ -234,7 +234,7 @@ class GameActivity : ComponentActivity(), ControlSink {
                             onResume = { menuOpen = false },
                             onEditControls = { menuOpen = false; editing = true },
                             onQuickSettings = { menuOpen = false; quickSettings = true },
-                            onToggleControls = { settings.setControlsVisible(!settings.controlsVisible) },
+                            onToggleControls = { settings.controlsVisible = !settings.controlsVisible },
                             onLogs = { showLog = true },
                             onQuit = {
                                 menuOpen = false
@@ -585,28 +585,28 @@ fun QuickSettingsDialog(settings: AppSettings, onDismiss: () -> Unit) {
                 Row {
                     FilterChip(
                         selected = settings.filter == VideoFilter.SHARP,
-                        onClick = { settings.setFilter(VideoFilter.SHARP) },
+                        onClick = { settings.filter = VideoFilter.SHARP },
                         label = { Text("Пиксели") },
                         modifier = Modifier.padding(end = 6.dp)
                     )
                     FilterChip(
                         selected = settings.filter == VideoFilter.SMOOTH,
-                        onClick = { settings.setFilter(VideoFilter.SMOOTH) },
+                        onClick = { settings.filter = VideoFilter.SMOOTH },
                         label = { Text("Сглаживание") },
                         modifier = Modifier.padding(end = 6.dp)
                     )
                     FilterChip(
                         selected = settings.filter == VideoFilter.CRT,
-                        onClick = { settings.setFilter(VideoFilter.CRT) },
+                        onClick = { settings.filter = VideoFilter.CRT },
                         label = { Text("CRT") }
                     )
                 }
                 Spacer(Modifier.height(8.dp))
-                SettingSwitch("Целочисленное масштабирование", settings.integerScaling) { settings.setIntegerScaling(it) }
-                SettingSwitch("Широкий экран (больше видно)", settings.widescreen) { settings.setWidescreen(it) }
-                SettingSwitch("Счётчик FPS", settings.showFps) { settings.setShowFps(it) }
+                SettingSwitch("Целочисленное масштабирование", settings.integerScaling) { settings.integerScaling = it }
+                SettingSwitch("Широкий экран (больше видно)", settings.widescreen) { settings.widescreen = it }
+                SettingSwitch("Счётчик FPS", settings.showFps) { settings.showFps = it }
                 SettingSwitch("Вибрация кнопок", settings.haptics) {
-                    settings.setHaptics(it)
+                    settings.haptics = it
                     Haptics.configure(it, settings.hapticsStrength)
                 }
                 Text(

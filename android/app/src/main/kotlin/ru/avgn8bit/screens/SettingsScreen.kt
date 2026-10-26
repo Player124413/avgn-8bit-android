@@ -62,27 +62,27 @@ fun SettingsScreen(
             Row {
                 FilterChip(
                     selected = settings.filter == VideoFilter.SHARP,
-                    onClick = { settings.setFilter(VideoFilter.SHARP) },
+                    onClick = { settings.filter = VideoFilter.SHARP },
                     label = { Text("Пиксели") },
                     modifier = Modifier.padding(end = 6.dp)
                 )
                 FilterChip(
                     selected = settings.filter == VideoFilter.SMOOTH,
-                    onClick = { settings.setFilter(VideoFilter.SMOOTH) },
+                    onClick = { settings.filter = VideoFilter.SMOOTH },
                     label = { Text("Сглаживание") },
                     modifier = Modifier.padding(end = 6.dp)
                 )
                 FilterChip(
                     selected = settings.filter == VideoFilter.CRT,
-                    onClick = { settings.setFilter(VideoFilter.CRT) },
+                    onClick = { settings.filter = VideoFilter.CRT },
                     label = { Text("CRT") }
                 )
             }
             Spacer(Modifier.height(4.dp))
-            SwitchRow("Целочисленное масштабирование", settings.integerScaling) { settings.setIntegerScaling(it) }
-            SwitchRow("Широкий экран (больше видно по краям)", settings.widescreen) { settings.setWidescreen(it) }
-            SwitchRow("Счётчик FPS", settings.showFps) { settings.setShowFps(it) }
-            SwitchRow("Оптимизации Vita (быстрее)", settings.fastGraphics) { settings.setFastGraphics(it) }
+            SwitchRow("Целочисленное масштабирование", settings.integerScaling) { settings.integerScaling = it }
+            SwitchRow("Широкий экран (больше видно по краям)", settings.widescreen) { settings.widescreen = it }
+            SwitchRow("Счётчик FPS", settings.showFps) { settings.showFps = it }
+            SwitchRow("Оптимизации Vita (быстрее)", settings.fastGraphics) { settings.fastGraphics = it }
             Text(
                 "Рендер порта унаследован от PS Vita-версии: кэш текстур, непрозрачные батчи, запекание. " +
                     "Обычно это самый быстрый режим; если картинка выглядит неправильно (чёрные или пропавшие " +
@@ -93,11 +93,11 @@ fun SettingsScreen(
         }
 
         Section("Управление") {
-            SliderRow("Прозрачность кнопок", settings.controlsOpacity, 0.25f..1f) { settings.setControlsOpacity(it) }
-            SliderRow("Размер кнопок", settings.controlsScale, 0.6f..1.6f) { settings.setControlsScale(it) }
-            SwitchRow("Показывать кнопки", settings.controlsVisible) { settings.setControlsVisible(it) }
+            SliderRow("Прозрачность кнопок", settings.controlsOpacity, 0.25f..1f) { settings.controlsOpacity = it }
+            SliderRow("Размер кнопок", settings.controlsScale, 0.6f..1.6f) { settings.controlsScale = it }
+            SwitchRow("Показывать кнопки", settings.controlsVisible) { settings.controlsVisible = it }
             SwitchRow("Вибрация при нажатии", settings.haptics) {
-                settings.setHaptics(it)
+                settings.haptics = it
                 Haptics.configure(it, settings.hapticsStrength)
             }
             if (settings.haptics) {
@@ -105,7 +105,7 @@ fun SettingsScreen(
                 Slider(
                     value = settings.hapticsStrength.toFloat(),
                     onValueChange = {
-                        settings.setHapticsStrength(it.toInt())
+                        settings.hapticsStrength = it.toInt()
                         Haptics.configure(true, it.toInt())
                     },
                     valueRange = 10f..255f
@@ -123,19 +123,19 @@ fun SettingsScreen(
                 OrientationMode.entries.forEach { mode ->
                     FilterChip(
                         selected = settings.orientation == mode,
-                        onClick = { settings.setOrientation(mode) },
+                        onClick = { settings.orientation = mode },
                         label = { Text(mode.label, fontSize = 11.sp) },
                         modifier = Modifier.padding(end = 6.dp)
                     )
                 }
             }
             Spacer(Modifier.height(4.dp))
-            SwitchRow("Не гасить экран", settings.keepScreenOn) { settings.setKeepScreenOn(it) }
-            SwitchRow("Скрывать системные панели", settings.hideSystemBars) { settings.setHideSystemBars(it) }
+            SwitchRow("Не гасить экран", settings.keepScreenOn) { settings.keepScreenOn = it }
+            SwitchRow("Скрывать системные панели", settings.hideSystemBars) { settings.hideSystemBars = it }
         }
 
         Section("Файлы") {
-            SwitchRow("Копировать видео при импорте", settings.includeVideosOnImport) { settings.setIncludeVideosOnImport(it) }
+            SwitchRow("Копировать видео при импорте", settings.includeVideosOnImport) { settings.includeVideosOnImport = it }
             Spacer(Modifier.height(6.dp))
             OutlinedButton(
                 onClick = {

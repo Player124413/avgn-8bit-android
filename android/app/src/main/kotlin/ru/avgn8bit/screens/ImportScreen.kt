@@ -237,7 +237,7 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
                         }
                         Switch(
                             checked = settings.includeVideosOnImport,
-                            onCheckedChange = { settings.setIncludeVideosOnImport(it) }
+                            onCheckedChange = { settings.includeVideosOnImport = it }
                         )
                     }
                     Spacer(Modifier.height(12.dp))
@@ -266,7 +266,7 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
                                     } else {
                                         patch.message
                                     }
-                                    settings.setImportedFolderName(p.gameFolderName)
+                                    settings.importedFolderName = p.gameFolderName
                                     done = true
                                     busy = false
                                     progress = 1f
