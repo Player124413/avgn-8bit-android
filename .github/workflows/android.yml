@@ -218,6 +218,26 @@ jobs:
         with:
           files: artifacts/*.apk
 
+      # Reading Actions logs requires a host some sandboxes cannot reach; a PR comment is readable everywhere.
+      - name: Post the build log to the pull request
+        if: failure() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          log=$(ls android/build-*.log 2>/dev/null | head -1)
+          if [ -z "$log" ]; then echo "no log"; exit 0; fi
+          {
+            echo "### Сборка не прошла"
+            echo ""
+            echo "Строки с ошибками (полный лог — в артефактах запуска):"
+            echo '```text'
+            grep -a -E "^e: |^w: .*\.kt|error:|CMake Error|FAILURE:|Execution failed for task|What went wrong|Caused by:" "$log" \
+              | head -120
+            echo '```'
+          } > /tmp/comment.md
+          gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/comment.md || true
+
       - name: Upload build logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
