@@ -244,6 +244,30 @@ jobs:
           wc -c /tmp/comment.md
           gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/comment.md || true
 
+      # Temporary debugging aid: put the interesting part of the build log on a branch, where it can be read with
+      # the API even from an environment that cannot open the Actions log storage.
+      - name: Publish the build log to a branch
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          log=$(ls android/build-*.log 2>/dev/null | head -1)
+          if [ -z "$log" ]; then echo "no log"; exit 0; fi
+          mkdir -p .ci-logs
+          {
+            echo "run: ${{ github.run_id }}"
+            echo "commit: ${{ github.sha }}"
+            echo
+            grep -a -n -E "^e: |error:|warning: unable|CMake Error|FAILURE:|Execution failed|What went wrong|Caused by:|^> Task " "$log" | tail -300
+          } > ".ci-logs/build-${{ github.run_id }}.txt"
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@users.noreply.github.com"
+          git checkout -B ci-logs
+          git add -f .ci-logs
+          git commit -m "CI log for run ${{ github.run_id }}"
+          git push -f origin ci-logs
+
       - name: Upload build logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
