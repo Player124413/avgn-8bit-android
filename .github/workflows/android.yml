@@ -204,6 +204,24 @@ jobs:
         with:
           files: artifacts/*.apk
 
+      # A downloadable link that does not expire: artifact downloads need a GitHub session, release assets do not.
+      # Manual runs and pushes to main replace the rolling "latest-build" pre-release.
+      - name: Publish APKs to the latest-build release
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          tag=latest-build
+          gh release delete "$tag" --yes --cleanup-tag >/dev/null 2>&1 || true
+          gh release create "$tag" artifacts/*.apk \
+            --target "${{ github.sha }}" \
+            --title "Последняя сборка" \
+            --notes "Сборка ${{ github.run_id }} из ${GITHUB_REF_NAME}." \
+            --prerelease || true
+          gh release view "$tag" --json assets --jq '.assets[] | "\(.name) \(.size) \(.url)"' || true
+          exit 0
+
       # The Actions log storage is unreachable from some environments, so on failure we build one compact report
       # (interesting lines + the tail of every Gradle log), post it as a PR comment and push it to the ci-logs
       # branch, where it can be read with the plain git-data API.
