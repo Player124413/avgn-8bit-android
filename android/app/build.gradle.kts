@@ -1,3 +1,6 @@
+import java.io.File
+import java.util.zip.ZipFile
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -152,7 +155,7 @@ val bundleGame by tasks.registering {
 
         // relative path inside assets/game -> where the bytes come from
         val zipEntries = LinkedHashMap<String, String>()
-        val fromDisk = LinkedHashMap<String, java.io.File>()
+        val fromDisk = LinkedHashMap<String, File>()
 
         fun wanted(relative: String): Boolean {
             if (relative.isEmpty() || relative.endsWith("/")) return false
@@ -171,8 +174,8 @@ val bundleGame by tasks.registering {
         }
 
         if (input.isDirectory) {
-            fun hasData(dir: java.io.File) =
-                java.io.File(dir, "data.win").isFile || java.io.File(dir, "data_vita.win").isFile
+            fun hasData(dir: File) =
+                File(dir, "data.win").isFile || File(dir, "data_vita.win").isFile
 
             var root = input
             if (!hasData(root)) {
@@ -184,7 +187,7 @@ val bundleGame by tasks.registering {
             }
             logger.lifecycle("bundleGame: ${fromDisk.size} files from $root")
         } else {
-            val zip = java.util.zip.ZipFile(input)
+            val zip = ZipFile(input)
             val names = zip.entries().toList()
                 .filter { !it.isDirectory }
                 .map { it.name.replace('\\', '/') }
@@ -212,7 +215,7 @@ val bundleGame by tasks.registering {
                 )
             }
             zipEntries.forEach { (relative, name) ->
-                val target = java.io.File(assets, "game/$relative")
+                val target = File(assets, "game/$relative")
                 target.parentFile?.mkdirs()
                 zip.getInputStream(zip.getEntry(name)).use { stream ->
                     target.outputStream().use { stream.copyTo(it, 1 shl 16) }
@@ -223,12 +226,12 @@ val bundleGame by tasks.registering {
         }
 
         fromDisk.forEach { (relative, file) ->
-            val target = java.io.File(assets, "game/$relative")
+            val target = File(assets, "game/$relative")
             target.parentFile?.mkdirs()
             file.copyTo(target, overwrite = true)
         }
 
-        val total = java.io.File(assets, "game").walkTopDown().filter { it.isFile }.sumOf { it.length() }
+        val total = File(assets, "game").walkTopDown().filter { it.isFile }.sumOf { it.length() }
         logger.lifecycle("bundleGame: assets/game is ${total / 1048576} MB")
     }
 }
