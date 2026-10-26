@@ -181,7 +181,7 @@ jobs:
           log=$(ls android/build-*.log 2>/dev/null | head -1)
           if [ -z "$log" ]; then echo "No build log found"; exit 0; fi
           grep -aE "^(e: |w: .*\.kt)|error:|CMake Error|Execution failed for task|What went wrong|Caused by:|Unresolved reference|^\.\.\. " "$log" \
-            | grep -av "warning:" | awk '!seen[$0]++' | head -25 | while IFS= read -r line; do
+            | grep -av "warning:" | awk '!seen[$0]++' | head -40 | while IFS= read -r line; do
               line=${line//'%'/'%25'}
               line=${line//$'\n'/'%0A'}
               line=${line//$'\r'/''}

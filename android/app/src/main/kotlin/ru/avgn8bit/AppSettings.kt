@@ -74,7 +74,7 @@ class AppSettings(context: Context) {
     fun setFastGraphics(value: Boolean) { fastGraphics = value; prefs.edit().putBoolean("fastGraphics", value).apply() }
     fun setHideSystemBars(value: Boolean) { hideSystemBars = value; prefs.edit().putBoolean("hideSystemBars", value).apply() }
     fun setImportedFolderName(value: String?) { importedFolderName = value; prefs.edit().putString("importedFolder", value).apply() }
-    fun setIncludeVideosOnImport(value: Boolean) { includeVideos = value; prefs.edit().putBoolean("includeVideos", value).apply() }
+    fun setIncludeVideosOnImport(value: Boolean) { includeVideosOnImport = value; prefs.edit().putBoolean("includeVideos", value).apply() }
 
     fun runtimeSettings() = RuntimeSettings(
         filter = filter,

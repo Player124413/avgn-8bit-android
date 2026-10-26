@@ -243,7 +243,7 @@ object GameStorage {
      * Copies the game into the app. [includeVideos] false skips the cutscenes, which is what most of the size is:
      * the game then skips them instead of playing them.
      */
-    suspend fun import(
+    suspend fun importFiles(
         context: Context,
         preview: ImportPreview,
         includeVideos: Boolean,

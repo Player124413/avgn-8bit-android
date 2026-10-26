@@ -245,7 +245,7 @@ fun ImportScreen(settings: AppSettings, onDone: () -> Unit, onBack: () -> Unit) 
                             error = null
                             scope.launch {
                                 try {
-                                    GameStorage.import(context, p, settings.includeVideosOnImport) { name, fraction ->
+                                    GameStorage.importFiles(context, p, settings.includeVideosOnImport) { name, fraction ->
                                         progress = fraction * 0.8f
                                         progressText = name
                                     }
