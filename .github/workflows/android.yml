@@ -204,10 +204,10 @@ jobs:
         with:
           files: artifacts/*.apk
 
-      # A downloadable link that does not expire: artifact downloads need a GitHub session, release assets do not.
-      # Manual runs and pushes to main replace the rolling "latest-build" pre-release.
+      # A downloadable link that does not expire: artifact downloads need a GitHub session and an unexpired run,
+      # release assets are plain links. Every successful build replaces the rolling "latest-build" pre-release, so the
+      # newest APK is always at /releases/tag/latest-build (this also covers builds triggered from other branches).
       - name: Publish APKs to the latest-build release
-        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
