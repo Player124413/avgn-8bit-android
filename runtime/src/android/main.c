@@ -735,6 +735,11 @@ JNIEXPORT void JNICALL JNI_FN(setGamepadScheme)(MAYBE_UNUSED JNIEnv* env, MAYBE_
     attachTouchPad(gRunner);
 }
 
+// The launcher's diagnostic switch: draw with the plain program instead of the game's own shaders.
+JNIEXPORT void JNICALL JNI_FN(setNoGameShaders)(MAYBE_UNUSED JNIEnv* env, MAYBE_UNUSED jclass cls, jboolean on) {
+    GLRenderer_setNoGameShaders(on == JNI_TRUE);
+}
+
 #define BUTTERSCOTCH_DROID_CONTINUE 0
 #define BUTTERSCOTCH_DROID_SHOULD_EXIT 1
 #define BUTTERSCOTCH_DROID_CONTINUE_NO_SWAP 2

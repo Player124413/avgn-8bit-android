@@ -119,6 +119,18 @@ static bool hasVAO() {
 
 // ===[ Shader Compilation ]===
 
+// App setting (Android, set from the launcher): draw everything with the plain program instead of the game's own
+// shaders. The game's shaders carry the palette swaps, so the colours differ, but the sprites are all there: it is how
+// one tells "a shader of the game draws this wrong" from "the sprite itself is wrong".
+static bool noGameShaders = false;
+void GLRenderer_setNoGameShaders(bool on) { noGameShaders = on; }
+
+// Number of shader slots in gmlShaders, and the ones whose first draw was logged / whose fallback was logged.
+static int32_t gmlShaderSlots = 0;
+static uint8_t* gmlDrawLogged = nullptr;
+static uint8_t* gmlFallbackLogged = nullptr;
+static char** gmlShaderNames = nullptr; // by shader index, so a log line can name the shader it is about
+
 #ifdef PLATFORM_VITA
 // Malloc'd copy of src with every occurrence of `from` replaced by `to`; adds the number of replacements to *count.
 static char* vitaReplaceAll(const char* src, const char* from, const char* to, int* count) {
@@ -1069,6 +1081,7 @@ static inline bool fastPalettizerActive(GLModernRenderer* m);
 static GLuint palettizerColorTable(GLModernRenderer* m, GLuint palette);
 #endif
 static void glApplyGmlProgram(Renderer* renderer, GMLShader* gmlShader);
+static void glShaderSettingsRefresh(Renderer* renderer);
 static void freeShader(GMLShader* shader);
 #ifdef PLATFORM_VITA
 static void vitaCrtBakeBeforeDraw(GLModernRenderer* m, GMLShader* shader, GlVertex* vertices, bool quads, int32_t count);
@@ -1473,6 +1486,29 @@ static void vitaPalSwapRecord(int32_t loc, const float* values, uint32_t n) {
 
 // ===[ Batch Flush ]===
 
+// Once per game shader: the samplers it reads and the texture each of their units had for its first draw. Nothing else
+// in the log says what a shader actually read, and a palette / mask sampler left on an atlas page is the one thing that
+// can recolour or punch holes in a sprite from outside the sprite itself.
+static void logShaderFirstDraw(GLModernRenderer* m, int32_t index) {
+    if (gmlDrawLogged == nullptr || index < 0 || index >= gmlShaderSlots || gmlDrawLogged[index]) return;
+    gmlDrawLogged[index] = 1;
+    GMLShader* shader = &m->gmlShaders[index];
+    char line[512] = "";
+    size_t used = 0;
+    int samplers = 0;
+    repeat(shader->uniformCount, b) {
+        GLShaderUniform* u = &shader->uniforms[b];
+        if (u->type != GL_SAMPLER_2D || used >= sizeof(line) - 64) continue;
+        GLuint tex = (u == shader->gmBaseTexture) ? m->currentTextureId : m->stageTexture[u->samplerSlot];
+        int n = snprintf(line + used, sizeof(line) - used, "%s%s=unit %u tex %u", used > 0 ? ", " : "",
+                         u->name, (unsigned) u->samplerSlot, (unsigned) tex);
+        if (n > 0) used += (size_t) n;
+        samplers++;
+    }
+    logInfo("GL: first draw with shader %d (%s), %d samplers: %s\n", index,
+            gmlShaderNames != nullptr && index < gmlShaderSlots ? gmlShaderNames[index] : "?", samplers, line);
+}
+
 static void flushBatch(GLRenderer* gl) {
     GLModernRenderer* modernGl = (GLModernRenderer*) gl;
 
@@ -1486,6 +1522,7 @@ static void flushBatch(GLRenderer* gl) {
 
     if (gl->base.currentShader != -1) {
         GMLShader* shader = &modernGl->gmlShaders[gl->base.currentShader];
+        logShaderFirstDraw(modernGl, gl->base.currentShader);
 
         if (fastPalettizerActive(modernGl)) {
             GLuint table = palettizerTable(modernGl, modernGl->stageTexture[modernGl->palPaletteSlot]);
@@ -1505,10 +1542,24 @@ static void flushBatch(GLRenderer* gl) {
             }
         }
 
+        // The sprite on the shader's own base-texture unit, and the game's texture_set_stage textures on the rest.
+        // Re-binding the stages matters: they were left bound by the last texture_set_stage, and a plain draw in
+        // between binds its sprite to unit 1 — a palette sampler that happens to sit on unit 1 then reads the sprite
+        // page instead of the palette, which recolours or dissolves exactly the sprites the game palette-swaps
+        // (enemies, bosses, bullets). A stage the game has not set (0) is left as it is.
         GLShaderUniform* uniform = shader->gmBaseTexture;
         if (uniform != nullptr)
             glActiveTexture(GL_TEXTURE0 + uniform->samplerSlot);
         glBindTexture(GL_TEXTURE_2D, modernGl->currentTextureId);
+        repeat(shader->uniformCount, b) {
+            GLShaderUniform* sampler = &shader->uniforms[b];
+            if (sampler->type != GL_SAMPLER_2D || sampler == uniform) continue;
+            if (sampler->samplerSlot > MAX_TEXTURE_STAGES) continue;
+            GLuint tex = modernGl->stageTexture[sampler->samplerSlot];
+            if (tex == 0) continue;
+            glActiveTexture(GL_TEXTURE0 + sampler->samplerSlot);
+            glBindTexture(GL_TEXTURE_2D, tex);
+        }
 #ifdef PLATFORM_VITA
         if (gl->base.currentShader == vitaPalSwap.index) {
             vitaPalSwapDraw = vitaPalSwapPick();
@@ -3046,6 +3097,21 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
     vitaShaderNoDiscard = (bool*) safeCalloc(vitaShaderCount + 1, sizeof(bool));
 #endif
 
+    gmlShaderSlots = (int32_t) dataWin->shdr.count;
+    if (gmlShaderNames != nullptr) {
+        repeat(gmlShaderSlots, i) free(gmlShaderNames[i]);
+        free(gmlShaderNames);
+    }
+    free(gmlDrawLogged);
+    free(gmlFallbackLogged);
+    gmlDrawLogged = (uint8_t*) safeCalloc((size_t) gmlShaderSlots + 1, 1);
+    gmlFallbackLogged = (uint8_t*) safeCalloc((size_t) gmlShaderSlots + 1, 1);
+    gmlShaderNames = (char**) safeCalloc((size_t) gmlShaderSlots + 1, sizeof(char*));
+    repeat(gmlShaderSlots, i) {
+        const char* name = dataWin->shdr.shaders[i].name;
+        gmlShaderNames[i] = safeStrdup(name != nullptr ? name : "?");
+    }
+
     repeat(dataWin->shdr.count, i) {
         Shader* shdr = &dataWin->shdr.shaders[i];
         GMLShader* gmlShader = &modernGl->gmlShaders[i];
@@ -3241,6 +3307,23 @@ static void glInit(Renderer* renderer, DataWin* dataWin) {
 
         modernGl->gmlShaderCount++;
     }
+    // One line that says whether the game's own shaders — the palette swaps the enemies, bosses and bullets are drawn
+    // with — are there at all: a missing one draws with the plain program (see glGpuSetShader) and its colours differ.
+    {
+        int failed = 0;
+        char names[384] = "";
+        repeat(dataWin->shdr.count, i) {
+            if (!modernGl->gmlShaders[i].compiled) {
+                failed++;
+                if (strlen(names) < sizeof(names) - 64) {
+                    if (names[0] != '\0') strcat(names, ", ");
+                    strncat(names, dataWin->shdr.shaders[i].name != nullptr ? dataWin->shdr.shaders[i].name : "?", 40);
+                }
+            }
+        }
+        if (failed == 0) logInfo("GL: all %u game shaders are compiled\n", dataWin->shdr.count);
+        else logError("GL: %d of %u game shaders did not compile: %s\n", failed, dataWin->shdr.count, names);
+    }
     initFastPalettizer(modernGl, dataWin);
 #ifdef PLATFORM_VITA
     repeat(vitaShaderCount, i) {
@@ -3329,9 +3412,26 @@ static void glApplyCullWinding(Renderer* renderer) {
 static void glGpuSetShader(Renderer* renderer, int32_t shaderIndex) {
     GLRenderer* gl = (GLRenderer*) renderer;
     GLModernRenderer* modernGl = (GLModernRenderer*) renderer;
-    
+
     flushBatch(gl);
+
+    // A shader that did not compile has no program: glUseProgram(0) leaves GLES with nothing to draw with and the
+    // sprite is simply missing (on the Vita's vitaGL it drew with the last program, which is why the Vita never needed
+    // this). Draw it with the plain program instead: the shape and the alpha are right, only the shader's colour work
+    // (the palette swaps) is missing, and the log names the shader once.
+    if (shaderIndex < 0 || shaderIndex >= gmlShaderSlots) return;
     GMLShader* gmlShader = &modernGl->gmlShaders[shaderIndex];
+    if (noGameShaders || !gmlShader->compiled || gmlShader->shaderId == 0) {
+        if (!noGameShaders && gmlFallbackLogged != nullptr && !gmlFallbackLogged[shaderIndex]) {
+            gmlFallbackLogged[shaderIndex] = 1;
+            logWarn("GL: shader %d draws with the plain program: %s\n", shaderIndex,
+                    noGameShaders ? "game shaders turned off in the launcher" : "it did not compile");
+        }
+        renderer->currentShader = -1;
+        glShaderSettingsRefresh(renderer); // binds the default program and its uniforms
+        return;
+    }
+
     if (shaderIndex == modernGl->palettizerIndex) gmlShader = &modernGl->fastPalettizer;
     glApplyGmlProgram(renderer, gmlShader);
     renderer->currentShader = shaderIndex;

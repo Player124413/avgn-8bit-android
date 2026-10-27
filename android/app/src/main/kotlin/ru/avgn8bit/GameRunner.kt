@@ -21,7 +21,8 @@ data class RuntimeSettings(
     val filter: VideoFilter = VideoFilter.SHARP,
     val integerScaling: Boolean = false,
     val widescreen: Boolean = false,
-    val showFps: Boolean = false
+    val showFps: Boolean = false,
+    val noGameShaders: Boolean = false
 )
 
 /**
@@ -81,6 +82,8 @@ class GameRunner(
     private var prepared = false
     // Read by the render thread when the runner starts; written from the UI thread.
     @Volatile private var padScheme = 1
+    // Render thread only: the game-shader switch as the runtime has it.
+    private var appliedNoGameShaders = false
     private var logOpen = false
     private var fboId = 0
     private var frameTexture = 0
@@ -268,6 +271,15 @@ class GameRunner(
         lastFrameNs = now
 
         val current = settings()
+
+        // The game's own shaders (the palette swaps enemies, bosses and bullets are drawn with) can be switched off in
+        // the launcher: those sprites are then drawn with the plain program, which answers "is a shader of the game
+        // drawing this wrong" without another build.
+        if (current.noGameShaders != appliedNoGameShaders) {
+            appliedNoGameShaders = current.noGameShaders
+            Native.setNoGameShaders(current.noGameShaders)
+            AppLog.write(if (current.noGameShaders) "Drawn without the game's shaders" else "The game's shaders are back on")
+        }
         computeRenderTarget(current.integerScaling, current.widescreen)
         ensureFramebuffer()
         if (current.widescreen) {

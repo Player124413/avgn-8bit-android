@@ -48,6 +48,9 @@ object Native {
 
     /** Which controller the touch pad imitates: 0 = PlayStation, 1 = Xbox. The game draws matching glyphs. */
     external fun setGamepadScheme(scheme: Int)
+
+    /** Draw with the plain program instead of the game's own shaders (the launcher's diagnostic switch). */
+    external fun setNoGameShaders(on: Boolean)
     external fun stepAndDraw(winW: Int, winH: Int, deltaSeconds: Float): Int
     external fun getTargetFrameHz(): Int
     external fun stopRunner()

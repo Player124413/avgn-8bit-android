@@ -99,6 +99,12 @@ fun SettingsScreen(
                 color = Color(0xFF888888),
                 fontSize = 11.sp
             )
+            SwitchRow(str(R.string.settings_no_game_shaders), settings.noGameShaders) { settings.noGameShaders = it }
+            Text(
+                str(R.string.settings_no_game_shaders_hint),
+                color = Color(0xFF888888),
+                fontSize = 11.sp
+            )
         }
 
         Section(str(R.string.settings_section_controls)) {

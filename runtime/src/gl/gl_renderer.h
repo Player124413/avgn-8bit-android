@@ -108,5 +108,7 @@ void GLRenderer_vitaFinishPrefetch(GLRenderer* gl);
 void GLRenderer_vitaAfterBootIndicator(GLRenderer* gl);
 #endif
 Renderer* GLRenderer_create(void);
+// Draw everything with the plain program instead of the game's shaders (the app's "no game shaders" switch).
+void GLRenderer_setNoGameShaders(bool on);
 
 #endif /* _BS_GL_RENDERER_H_ */

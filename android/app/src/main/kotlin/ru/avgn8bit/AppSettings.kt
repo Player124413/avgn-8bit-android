@@ -79,6 +79,19 @@ class AppSettings(context: Context) {
             putBoolean("fastGraphics", value)
         }
 
+    /**
+     * Off by default. On, the renderer draws every sprite with its plain program instead of the game's own shaders,
+     * which carry the palette swaps the enemies, bosses and bullets are drawn with. Colours differ, shapes do not: if
+     * a sprite looks broken with this on and right with it off, the game's shader is what draws it wrong.
+     */
+    private var noGameShadersState by mutableStateOf(prefs.getBoolean("noGameShaders", false))
+    var noGameShaders: Boolean
+        get() = noGameShadersState
+        set(value) {
+            noGameShadersState = value
+            putBoolean("noGameShaders", value)
+        }
+
     // ===[ Touch controls ]===
 
     private var controlsVisibleState by mutableStateOf(prefs.getBoolean("controlsVisible", true))
@@ -208,7 +221,8 @@ class AppSettings(context: Context) {
         filter = filter,
         integerScaling = integerScaling,
         widescreen = widescreen,
-        showFps = showFps
+        showFps = showFps,
+        noGameShaders = noGameShaders
     )
 
     /**
