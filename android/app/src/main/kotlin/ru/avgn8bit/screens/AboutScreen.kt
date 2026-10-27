@@ -44,6 +44,14 @@ fun AboutScreen(onBack: () -> Unit, onShowCredits: () -> Unit = {}) {
             Body(str(R.string.about_version, BuildConfig.VERSION_NAME))
         }
 
+        Section(str(R.string.about_section_runtime)) {
+            Body(str(R.string.about_body_runtime))
+        }
+
+        Section(str(R.string.about_section_install)) {
+            Body(str(R.string.about_body_install))
+        }
+
         Section(str(R.string.about_section_controls)) {
             Body(str(R.string.about_body_controls))
         }
