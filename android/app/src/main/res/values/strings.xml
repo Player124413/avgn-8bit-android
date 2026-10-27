@@ -96,8 +96,8 @@
     <string name="settings_fps">FPS counter</string>
     <string name="settings_fast_graphics">Vita optimisations (faster)</string>
     <string name="settings_fast_graphics_hint">The renderer is inherited from the PS Vita version: texture cache, opaque batches, baking. This is normally the fastest mode; if the picture looks wrong (black or missing sprites), turn it off — every optimisation is then disabled through marker files next to data.win.</string>
-    <string name="settings_no_game_shaders">Draw without the game\'s shaders (diagnostics)</string>
-    <string name="settings_no_game_shaders_hint">Sprites are drawn with a plain program, so the palette swaps the game\'s shaders do (enemies, bosses, bullets change colour with them) are missing. Turn it on when a sprite looks broken and off when it looks right: that tells whether the game\'s shader is the cause.</string>
+    <string name="settings_no_game_shaders">Draw without the game\'s shaders (on by default)</string>
+    <string name="settings_no_game_shaders_hint">The workaround this build ships with: every sprite is drawn with a plain program, so the palette swaps the game\'s shaders do (enemies, bosses and bullets change colour with them) are missing, but nothing disappears. Turn it off to get the palette swaps back; a sprite that then goes missing or breaks is drawn wrong by its own shader.</string>
     <string name="settings_section_controls">Controls</string>
     <string name="settings_controls_opacity">Button opacity</string>
     <string name="settings_controls_scale">Button size</string>

@@ -80,11 +80,12 @@ class AppSettings(context: Context) {
         }
 
     /**
-     * Off by default. On, the renderer draws every sprite with its plain program instead of the game's own shaders,
-     * which carry the palette swaps the enemies, bosses and bullets are drawn with. Colours differ, shapes do not: if
-     * a sprite looks broken with this on and right with it off, the game's shader is what draws it wrong.
+     * On by default: the renderer draws every sprite with its plain program instead of the game's own shaders, which
+     * carry the palette swaps the enemies, bosses and bullets are drawn with. Colours differ, shapes do not — a sprite
+     * whose shader does not work on the phone is then still drawn instead of being missing. Turning it off restores
+     * the palette swaps; a sprite that then disappears or breaks is drawn wrong by its own shader.
      */
-    private var noGameShadersState by mutableStateOf(prefs.getBoolean("noGameShaders", false))
+    private var noGameShadersState by mutableStateOf(prefs.getBoolean("noGameShaders", true))
     var noGameShaders: Boolean
         get() = noGameShadersState
         set(value) {
