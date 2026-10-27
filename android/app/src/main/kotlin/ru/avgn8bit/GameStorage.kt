@@ -28,8 +28,20 @@ object GameStorage {
     const val DATA_WIN = "data.win"
     const val VITA_WIN = "data_vita.win"
 
-    private val ROOT_DIRS = listOf("Lang", "Attract", "Cutscenes")
-    private val FONT_EXTENSIONS = listOf(".ttf", ".otf")
+    /**
+     * Everything the game ships is imported, not a list of folders picked in advance: a game that keeps one of its
+     * files (a language table, a controller database, an options file) outside Lang/, Attract/ and Cutscenes/ would
+     * otherwise lose it silently, and on Windows and on the Vita's memory card the whole folder is simply there.
+     * Only the obvious junk of a zipped Windows folder is dropped.
+     */
+    private val JUNK_NAMES = setOf(
+        "__macosx", ".ds_store", "thumbs.db", "desktop.ini", ".git", ".gitignore", ".gitattributes"
+    )
+
+    private fun isJunk(name: String): Boolean {
+        val lower = name.lowercase()
+        return lower in JUNK_NAMES || lower.startsWith("._") || lower.endsWith(".lnk") || lower.endsWith(".tmp")
+    }
 
     fun dataDir(context: Context): File = File(context.filesDir, DIR_DATA).apply { mkdirs() }
     fun savesDir(context: Context): File = File(context.filesDir, DIR_SAVES).apply { mkdirs() }
@@ -114,7 +126,8 @@ object GameStorage {
         val sizesIncomplete: Boolean = false
     ) {
         val hasDataWin: Boolean get() = entries.any { it.relative == DATA_WIN || it.relative == VITA_WIN }
-        val videoBytes: Long get() = sizesByFolder["Cutscenes"] ?: 0L
+        val videoBytes: Long
+            get() = sizesByFolder.entries.firstOrNull { it.key.equals("Cutscenes", ignoreCase = true) }?.value ?: 0L
         val fileCount: Int get() = entries.size
     }
 
@@ -145,7 +158,8 @@ object GameStorage {
 
     /**
      * Looks inside a zip (the app accepts one instead of a folder, which is how most people move a 1.5 GB game
-     * around). Only the entries the port needs are listed; everything else is ignored.
+     * around). Everything the game ships is listed - it is the game's own file layout that decides what it needs,
+     * not a list of folders guessed here (see [JUNK_NAMES]) - and the cutscene videos can be left out.
      */
     fun inspectZip(context: Context, uri: Uri): ImportPreview {
         val names = ArrayList<String>()
@@ -222,11 +236,12 @@ object GameStorage {
                     // Keep the patched name: a file from the Vita patcher must not be overwritten with data.win.
                     lower == DATA_WIN -> out += FileEntry(DATA_WIN, child.length(), document = child)
                     lower == VITA_WIN -> out += FileEntry(VITA_WIN, child.length(), document = child)
-                    FONT_EXTENSIONS.any { lower.endsWith(it) } -> out += FileEntry(name, child.length(), document = child)
+                    isJunk(name) -> Unit
+                    else -> out += FileEntry(name, child.length(), document = child)
                 }
             } else if (child.isDirectory) {
-                val canonical = ROOT_DIRS.firstOrNull { it.equals(name, ignoreCase = true) } ?: return@forEach
-                collectDirectory(child, canonical, includeVideos, out)
+                if (isJunk(name)) return@forEach
+                collectDirectory(child, name, includeVideos, out)
             }
         }
         return out
@@ -380,20 +395,17 @@ object GameStorage {
         if (rest.isEmpty() || rest.endsWith("/")) return null
         if (rest.split('/').any { it == ".." || it.isEmpty() }) return null
         if (rest.startsWith(".")) return null
+        if (isJunk(rest.substringAfterLast('/'))) return null
 
-        val depth = rest.count { it == '/' }
-        if (depth == 0) {
+        if (rest.count { it == '/' } == 0) {
             val lower = rest.lowercase()
             return when {
                 lower == DATA_WIN -> DATA_WIN
                 lower == VITA_WIN -> VITA_WIN
-                FONT_EXTENSIONS.any { lower.endsWith(it) } -> rest
-                else -> null
+                else -> rest
             }
         }
-        val folder = rest.substringBefore('/')
-        val canonical = ROOT_DIRS.firstOrNull { it.equals(folder, ignoreCase = true) } ?: return null
-        return canonical + rest.substring(folder.length)
+        return rest
     }
 
     /** Reads the game's own name out of data.win; null when the file is not a WAD we can parse. */

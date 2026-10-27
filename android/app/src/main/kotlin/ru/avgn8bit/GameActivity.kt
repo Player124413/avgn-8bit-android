@@ -388,11 +388,27 @@ class GameActivity : ComponentActivity(), ControlSink {
         // The game keeps its menu labels and dialogs in Lang/ next to data.win; without them there is nothing to write
         // into a menu, so a screen like the options list comes out empty. Say so in the log (and on screen) instead of
         // leaving it a mystery.
-        val langDir = File(GameStorage.dataDir(this), "Lang")
+        val dataDir = GameStorage.dataDir(this)
+        // What was actually imported, and what each language file calls itself. A blank row in the game's own language
+        // list is a file that is missing (or one whose name the game asks for differently), and both are visible here:
+        // the top level shows which files made it in, the first line shows which language each file belongs to.
+        AppLog.write("Game files: " + dataDir.listFiles().orEmpty().sortedBy { it.name }.joinToString(", ") {
+            if (it.isDirectory) "${it.name}/ (${it.listFiles()?.size ?: 0})" else it.name
+        })
+        val langDir = File(dataDir, "Lang")
         val langFiles = langDir.walkTopDown().filter { it.isFile }.map { it.name }.sorted().toList()
         AppLog.write("Lang/: ${langFiles.size} files")
         if (langFiles.isNotEmpty()) {
             AppLog.write("Lang/ contents: " + langFiles.take(60).joinToString(", "))
+            val heads = langDir.walkTopDown().filter { it.isFile && it.length() in 1..200_000 }.take(40).mapNotNull { file ->
+                val first = try {
+                    file.bufferedReader().use { reader -> reader.readLine() }
+                } catch (_: Throwable) {
+                    null
+                }
+                if (first.isNullOrBlank()) null else "${file.name}: ${first.take(48)}"
+            }.sorted().toList()
+            if (heads.isNotEmpty()) AppLog.write("Lang/ first lines: " + heads.joinToString(" | "))
         }
         if (langFiles.isEmpty()) {
             AppLog.write("Lang/ is missing or empty: the game's own text (menus, option names) will be blank")
