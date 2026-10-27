@@ -80,7 +80,7 @@ class GameRunner(
     private var gameStarted = false
     private var prepared = false
     // Read by the render thread when the runner starts; written from the UI thread.
-    @Volatile private var padScheme = 0
+    @Volatile private var padScheme = 1
     private var logOpen = false
     private var fboId = 0
     private var frameTexture = 0

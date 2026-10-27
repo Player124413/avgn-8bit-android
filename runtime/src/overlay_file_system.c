@@ -16,6 +16,7 @@
 #else
 #include <unistd.h>
 #include <dirent.h>
+#include <strings.h>
 #define overlayMkdir(path) mkdir((path), 0777)
 #define overlayRmdir(path) rmdir(path)
 #endif
@@ -80,12 +81,112 @@ static bool firstPathFile(const char* fullPath) {
     return stat(fullPath, &st) == 0 && !S_ISDIR(st.st_mode);
 }
 
+// ===[ Case-insensitive lookups (Android) ]===
+// Windows and the Vita's file system ignore case; Android's does not. A game built for Windows asks for the paths the
+// way it wrote them, and one mismatched letter ("Lang/1.txt" against "lang/1.txt", "Data.win" against "data.win")
+// makes a file invisible: that is how a single language of the game's own list ends up blank while the rest load.
+// Missing files are logged, once each, because "the game shows nothing here" is otherwise impossible to explain.
+
+#if defined(__ANDROID__)
+
+#define CASE_FIX_MAX_DEPTH 16
+#define MISSING_LOG_LIMIT 40
+
+static int missingFileLogs = 0;
+static int caseFixLogs = 0;
+
+/** Rebuilds [rest] under [prefix] using the on-disk spelling of every component, or returns nullptr. */
+static char* fixCaseInPath(const char* prefix, const char* rest, int depth) {
+    if (depth > CASE_FIX_MAX_DEPTH) return nullptr;
+    if (rest == nullptr || rest[0] == '\0') return safeStrdup(prefix);
+
+    const char* slash = strchr(rest, '/');
+    size_t len = slash != nullptr ? (size_t) (slash - rest) : strlen(rest);
+    if (len == 0 || len >= 255) return nullptr;
+    const char* tail = slash != nullptr ? slash + 1 : rest + len;
+
+    char name[256];
+    memcpy(name, rest, len);
+    name[len] = '\0';
+
+    size_t prefixLen = strlen(prefix);
+    char* candidate = (char *) safeMalloc(prefixLen + len + 2);
+    snprintf(candidate, prefixLen + len + 2, "%s/%s", prefix, name);
+
+    struct stat st;
+    if (stat(candidate, &st) == 0) {
+        char* result = fixCaseInPath(candidate, tail, depth + 1);
+        free(candidate);
+        return result;
+    }
+
+    const char* dirPath = prefixLen > 0 ? prefix : "/";
+    DIR* dir = opendir(dirPath);
+    if (dir == nullptr) {
+        free(candidate);
+        return nullptr;
+    }
+    char matched[256];
+    bool found = false;
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != nullptr) {
+        if (strcasecmp(entry->d_name, name) != 0) continue;
+        snprintf(matched, sizeof(matched), "%s", entry->d_name);
+        found = true;
+        break;
+    }
+    closedir(dir);
+    if (!found) {
+        free(candidate);
+        return nullptr;
+    }
+
+    snprintf(candidate, prefixLen + strlen(matched) + 2, "%s/%s", prefix, matched);
+    char* result = fixCaseInPath(candidate, tail, depth + 1);
+    free(candidate);
+    return result;
+}
+
+/** Corrects the case of a resolved path that does not exist, or logs it as missing. Takes ownership of [path]. */
+static char* applyCaseFallback(char* path) {
+    if (path == nullptr) return nullptr;
+    struct stat st;
+    if (stat(path, &st) == 0) return path;
+    if (path[0] != '/') {
+        if (missingFileLogs < MISSING_LOG_LIMIT) {
+            missingFileLogs++;
+            logWarn("File not found: %s\n", path);
+        }
+        return path;
+    }
+
+    char* fixed = fixCaseInPath("", path + 1, 0);
+    if (fixed != nullptr) {
+        if (stat(fixed, &st) == 0) {
+            if (caseFixLogs < 20 && strcmp(fixed, path) != 0) {
+                caseFixLogs++;
+                logInfo("File %s opened as %s (case differs)\n", path, fixed);
+            }
+            free(path);
+            return fixed;
+        }
+        free(fixed);
+    }
+    if (missingFileLogs < MISSING_LOG_LIMIT) {
+        missingFileLogs++;
+        logWarn("File not found: %s\n", path);
+    }
+    return path;
+}
+
+#endif
+
 // Returns a heap-allocated full path for reads. Absolute inputs pass through as-is.
 // For relative inputs, savePath wins if the file exists there, else bundlePath.
 // A path already in the save area is used as is. One already in the bundle (working_directory + "file": the
 // working directory is the bundle) is resolved like a relative path, so the save area shadows the bundle as in
 // GameMaker's file sandbox: a file the game wrote through working_directory went to the save area (resolveForWrite).
-static char* resolveForRead(OverlayFileSystem* ofs, const char* relativePath) {
+static char* resolveForReadExact(OverlayFileSystem* ofs, const char* relativePath) {
     char* normalized = normalizePath(relativePath);
     if (isAbsolute(normalized)) return normalized;
 
@@ -113,6 +214,16 @@ static char* resolveForRead(OverlayFileSystem* ofs, const char* relativePath) {
     char* bundleFull = joinPath(ofs->bundlePath, rel);
     free(normalized);
     return bundleFull;
+}
+
+// The path every read goes through: the exact spelling first, then the on-disk spelling of the same name (see
+// applyCaseFallback), so that a game built for a case-insensitive file system finds its Lang/ files on Android too.
+static char* resolveForRead(OverlayFileSystem* ofs, const char* relativePath) {
+#if defined(__ANDROID__)
+    return applyCaseFallback(resolveForReadExact(ofs, relativePath));
+#else
+    return resolveForReadExact(ofs, relativePath);
+#endif
 }
 
 // Returns a heap-allocated full path for writes. Absolute inputs pass through as-is.

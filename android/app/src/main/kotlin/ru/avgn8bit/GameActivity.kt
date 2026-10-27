@@ -143,6 +143,12 @@ class GameActivity : ComponentActivity(), ControlSink {
 
                 LaunchedEffect(layout) { controls.save(isPortrait, layout) }
 
+                // The game decides whether a controller is connected - and which glyphs to draw - from the identity the
+                // runtime reports, so the choice made on the pause screen has to reach the runner as soon as it exists.
+                LaunchedEffect(runner, scheme) {
+                    runner?.setGamepadScheme(if (scheme == ButtonScheme.XBOX) 1 else 0)
+                }
+
                 // The game is paused while any of our overlays is up, or while the app is in the background.
                 val paused = menuOpen || editing || quickSettings || activityPaused
                 LaunchedEffect(paused, runner) {
@@ -254,9 +260,6 @@ class GameActivity : ComponentActivity(), ControlSink {
                             onScheme = { chosen ->
                                 scheme = chosen
                                 settings.padScheme = chosen.name
-                                // The game draws its own button prompts from the controller identity, so a switch
-                                // here has to reach the runtime as well.
-                                runner?.setGamepadScheme(if (chosen == ButtonScheme.XBOX) 1 else 0)
                                 layout = Presets.layout(chosen, isPortrait)
                             },
                             onResume = { menuOpen = false },
@@ -385,9 +388,13 @@ class GameActivity : ComponentActivity(), ControlSink {
         // The game keeps its menu labels and dialogs in Lang/ next to data.win; without them there is nothing to write
         // into a menu, so a screen like the options list comes out empty. Say so in the log (and on screen) instead of
         // leaving it a mystery.
-        val langFiles = File(GameStorage.dataDir(this), "Lang").walkTopDown().count { it.isFile }
-        AppLog.write("Lang/: $langFiles files")
-        if (langFiles == 0) {
+        val langDir = File(GameStorage.dataDir(this), "Lang")
+        val langFiles = langDir.walkTopDown().filter { it.isFile }.map { it.name }.sorted().toList()
+        AppLog.write("Lang/: ${langFiles.size} files")
+        if (langFiles.isNotEmpty()) {
+            AppLog.write("Lang/ contents: " + langFiles.take(60).joinToString(", "))
+        }
+        if (langFiles.isEmpty()) {
             AppLog.write("Lang/ is missing or empty: the game's own text (menus, option names) will be blank")
             prepareWarning = getString(R.string.game_lang_missing)
         }

@@ -313,10 +313,10 @@ object Presets {
      * by the current default once (see [ControlsStore.load]), so an update actually shows the new pad instead of the
      * one the player tuned months ago against a layout that no longer exists.
      */
-    const val LAYOUT_VERSION = 3
+    const val LAYOUT_VERSION = 4
 
     /** What a fresh install starts with. */
-    val defaultScheme = ButtonScheme.PLAYSTATION
+    val defaultScheme = ButtonScheme.XBOX
 
     fun defaultLandscape(): ControlLayout = layout(defaultScheme, portrait = false)
     fun defaultPortrait(): ControlLayout = layout(defaultScheme, portrait = true)

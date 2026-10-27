@@ -49,7 +49,8 @@ class AppSettings(context: Context) {
             putBoolean("integerScaling", value)
         }
 
-    private var widescreenState by mutableStateOf(prefs.getBoolean("widescreen", false))
+    // On by default: the game fills a modern phone screen instead of leaving black bars on a 16:9 panel.
+    private var widescreenState by mutableStateOf(prefs.getBoolean("widescreen", true))
     var widescreen: Boolean
         get() = widescreenState
         set(value) {
@@ -108,7 +109,7 @@ class AppSettings(context: Context) {
      * Which controller the on-screen pad imitates: "playstation" or "xbox". It picks the presets (glyphs, button
      * names) and the identity the runtime reports to the game, so its own prompts match the pad on the screen.
      */
-    private var padSchemeState by mutableStateOf(prefs.getString("padScheme", "playstation") ?: "playstation")
+    private var padSchemeState by mutableStateOf(prefs.getString("padScheme", "xbox") ?: "xbox")
     var padScheme: String
         get() = padSchemeState
         set(value) {

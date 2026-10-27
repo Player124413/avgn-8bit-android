@@ -368,7 +368,7 @@ static const AndroidPadIdentity PAD_XBOX = {
                "rightshoulder:b5,rightstick:b10,righttrigger:a5,rightx:a3,righty:a4,start:b7,x:b2,y:b3,platform:Android,"
 };
 
-static int gPadScheme = 0; // 0 = PlayStation, 1 = Xbox
+static int gPadScheme = 1; // 0 = PlayStation, 1 = Xbox (the default preset)
 
 static const AndroidPadIdentity* currentPadIdentity(void) {
     return gPadScheme == 1 ? &PAD_XBOX : &PAD_PLAYSTATION;
