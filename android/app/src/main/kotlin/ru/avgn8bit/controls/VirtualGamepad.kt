@@ -93,7 +93,8 @@ fun ControlOverlay(
     scaleMultiplier: Float = 1f,
     hapticsEnabled: Boolean = true,
     snapToGrid: Boolean = true,
-    showGrid: Boolean = true
+    showGrid: Boolean = true,
+    sendKeys: Boolean = true
 ) {
     var sizePx by remember { mutableStateOf(IntSize.Zero) }
     val states = remember { mutableStateMapOf<String, ElementState>() }
@@ -111,7 +112,7 @@ fun ControlOverlay(
     Box(
         modifier = modifier
             .onSizeChanged { sizePx = it }
-            .pointerInput(editable, sizePx) {
+            .pointerInput(editable, sizePx, sendKeys) {
                 val handler = GestureHandler(
                     layoutProvider = { currentLayout },
                     sink = currentSink,
@@ -121,6 +122,7 @@ fun ControlOverlay(
                     editable = editable,
                     snap = snapToGrid,
                     haptics = hapticsEnabled,
+                    sendKeys = sendKeys,
                     scale = scaleMultiplier,
                     size = { sizePx },
                     onSelect = { currentOnSelect(it) },
@@ -233,6 +235,8 @@ private class GestureHandler(
     private val editable: Boolean,
     private val snap: Boolean,
     private val haptics: Boolean,
+    /** False: the pad speaks only the gamepad protocol, so the game shows its controller prompts, not its keys. */
+    private val sendKeys: Boolean,
     private val scale: Float,
     private val size: () -> IntSize,
     private val onSelect: (String?) -> Unit,
@@ -281,6 +285,7 @@ private class GestureHandler(
     }
 
     private fun emit(binding: Binding, down: Boolean) {
+        if (!sendKeys && binding.kind == BindKind.KEY) return
         when (binding.kind) {
             BindKind.KEY -> sink.key(binding.code, down)
             BindKind.PAD -> sink.pad(binding.code, down)

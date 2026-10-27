@@ -104,6 +104,31 @@ class AppSettings(context: Context) {
             putFloat("controlsScale", value)
         }
 
+    /**
+     * Which controller the on-screen pad imitates: "playstation" or "xbox". It picks the presets (glyphs, button
+     * names) and the identity the runtime reports to the game, so its own prompts match the pad on the screen.
+     */
+    private var padSchemeState by mutableStateOf(prefs.getString("padScheme", "playstation") ?: "playstation")
+    var padScheme: String
+        get() = padSchemeState
+        set(value) {
+            padSchemeState = value
+            putString("padScheme", value)
+        }
+
+    /**
+     * Off by default: the pad then sends only gamepad buttons and axes, which is what a virtual gamepad on a PC sends
+     * and what makes the game draw its controller prompts instead of keyboard ones. Turning it on additionally
+     * presses the keyboard keys each button carries, for a game (or a moment) where the pad path does not work.
+     */
+    private var padKeysState by mutableStateOf(prefs.getBoolean("padKeys", false))
+    var padKeys: Boolean
+        get() = padKeysState
+        set(value) {
+            padKeysState = value
+            putBoolean("padKeys", value)
+        }
+
     private var hapticsState by mutableStateOf(prefs.getBoolean("haptics", true))
     var haptics: Boolean
         get() = hapticsState

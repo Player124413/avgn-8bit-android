@@ -102,6 +102,8 @@
     <string name="settings_controls_visible">Show the buttons</string>
     <string name="settings_haptics">Vibrate on press</string>
     <string name="settings_haptics_short">Button vibration</string>
+    <string name="settings_pad_keys">Also send keyboard keys</string>
+    <string name="settings_pad_keys_hint">Off: the pad behaves like a real controller, and the game shows controller prompts. On: every button also presses its keyboard key (the game then draws keyboard prompts).</string>
     <string name="settings_haptics_strength">Vibration strength</string>
     <string name="settings_edit_layout">Edit the button layout</string>
     <string name="settings_section_screen">Screen</string>

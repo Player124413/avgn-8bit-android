@@ -130,7 +130,12 @@ class GameActivity : ComponentActivity(), ControlSink {
                 val configuration = LocalConfiguration.current
                 val isPortrait = configuration.screenHeightDp > configuration.screenWidthDp
                 var layout by remember(isPortrait) { mutableStateOf(controls.load(isPortrait)) }
-                var scheme by remember { mutableStateOf(Presets.defaultScheme) }
+                var scheme by remember {
+                    mutableStateOf(
+                        ButtonScheme.entries.firstOrNull { it.name.equals(settings.padScheme, ignoreCase = true) }
+                            ?: Presets.defaultScheme
+                    )
+                }
                 var menuOpen by remember { mutableStateOf(false) }
                 var editing by remember { mutableStateOf(false) }
                 var quickSettings by remember { mutableStateOf(false) }
@@ -176,7 +181,8 @@ class GameActivity : ComponentActivity(), ControlSink {
                             modifier = Modifier.fillMaxSize(),
                             opacityMultiplier = settings.controlsOpacity,
                             scaleMultiplier = settings.controlsScale,
-                            hapticsEnabled = settings.haptics
+                            hapticsEnabled = settings.haptics,
+                            sendKeys = settings.padKeys
                         )
                     }
 
@@ -247,6 +253,10 @@ class GameActivity : ComponentActivity(), ControlSink {
                             scheme = scheme,
                             onScheme = { chosen ->
                                 scheme = chosen
+                                settings.padScheme = chosen.name
+                                // The game draws its own button prompts from the controller identity, so a switch
+                                // here has to reach the runtime as well.
+                                runner?.setGamepadScheme(if (chosen == ButtonScheme.XBOX) 1 else 0)
                                 layout = Presets.layout(chosen, isPortrait)
                             },
                             onResume = { menuOpen = false },
@@ -716,6 +726,12 @@ fun QuickSettingsDialog(settings: AppSettings, onDismiss: () -> Unit) {
                 SettingSwitch(str(R.string.settings_integer_scaling), settings.integerScaling) { settings.integerScaling = it }
                 SettingSwitch(str(R.string.settings_widescreen_short), settings.widescreen) { settings.widescreen = it }
                 SettingSwitch(str(R.string.settings_fps), settings.showFps) { settings.showFps = it }
+                SettingSwitch(str(R.string.settings_pad_keys), settings.padKeys) { settings.padKeys = it }
+                Text(
+                    str(R.string.settings_pad_keys_hint),
+                    color = Color(0xFF888888),
+                    fontSize = 11.sp
+                )
                 SettingSwitch(str(R.string.settings_haptics_short), settings.haptics) {
                     settings.haptics = it
                     Haptics.configure(it, settings.hapticsStrength)

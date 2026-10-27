@@ -1,5 +1,6 @@
 #include "runner_keyboard.h"
 #include "utils.h"
+#include "input_trace.h"
 
 #include <stdlib.h>
 #include "string_compat.h"
@@ -82,7 +83,8 @@ bool RunnerKeyboard_check(RunnerKeyboardState* kb, int32_t gmlKeyCode) {
     if (gmlKeyCode == VK_NOKEY) {
         return !checkIfAnyKey(kb->keyDown);
     }
-    if (!isValidKey(gmlKeyCode)) return false;
+    if (kb == NULL || !isValidKey(gmlKeyCode)) return false;
+    BS_TRACE_INPUT("keyboard_check", gmlKeyCode, 0, kb->keyDown[gmlKeyCode]);
     return kb->keyDown[gmlKeyCode];
 }
 
@@ -93,7 +95,8 @@ bool RunnerKeyboard_checkPressed(RunnerKeyboardState* kb, int32_t gmlKeyCode) {
     if (gmlKeyCode == VK_NOKEY) {
         return !checkIfAnyKey(kb->keyPressed);
     }
-    if (!isValidKey(gmlKeyCode)) return false;
+    if (kb == NULL || !isValidKey(gmlKeyCode)) return false;
+    BS_TRACE_INPUT("keyboard_check_pressed", gmlKeyCode, 0, kb->keyPressed[gmlKeyCode]);
     return kb->keyPressed[gmlKeyCode];
 }
 
@@ -104,7 +107,8 @@ bool RunnerKeyboard_checkReleased(RunnerKeyboardState* kb, int32_t gmlKeyCode) {
     if (gmlKeyCode == VK_NOKEY) {
         return !checkIfAnyKey(kb->keyReleased);
     }
-    if (!isValidKey(gmlKeyCode)) return false;
+    if (kb == NULL || !isValidKey(gmlKeyCode)) return false;
+    BS_TRACE_INPUT("keyboard_check_released", gmlKeyCode, 0, kb->keyReleased[gmlKeyCode]);
     return kb->keyReleased[gmlKeyCode];
 }
 

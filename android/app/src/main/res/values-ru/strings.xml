@@ -102,6 +102,8 @@
     <string name="settings_controls_visible">Показывать кнопки</string>
     <string name="settings_haptics">Вибрация при нажатии</string>
     <string name="settings_haptics_short">Вибрация кнопок</string>
+    <string name="settings_pad_keys">Отправлять ещё и клавиши</string>
+    <string name="settings_pad_keys_hint">Выкл.: пад ведёт себя как настоящий геймпад, и игра показывает подсказки для геймпада. Вкл.: каждая кнопка дополнительно нажимает свою клавишу (тогда игра рисует клавиатурные подсказки).</string>
     <string name="settings_haptics_strength">Сила вибрации</string>
     <string name="settings_edit_layout">Настроить раскладку кнопок</string>
     <string name="settings_section_screen">Экран</string>

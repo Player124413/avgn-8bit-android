@@ -8673,6 +8673,13 @@ static RValue builtin_gamepad_get_description(VMContext* ctx, RValue* args, int3
     return RValue_makeOwnedString(safeStrdup(desc));
 }
 
+static RValue builtin_gamepad_get_mapping(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
+    Runner* runner = ctx->runner;
+    if (runner == NULL || runner->gamepads == NULL) return RValue_makeOwnedString(safeStrdup(""));
+    int32_t device = RValue_toInt32(args[0]);
+    return RValue_makeOwnedString(safeStrdup(RunnerGamepad_getMapping(runner->gamepads, device)));
+}
+
 static RValue builtin_gamepad_get_guid(VMContext* ctx, RValue* args, MAYBE_UNUSED int32_t argCount) {
     Runner* runner = ctx->runner;
     if (runner == NULL || runner->gamepads == NULL) return RValue_makeOwnedString(safeStrdup("none"));
@@ -26109,7 +26116,7 @@ void VMBuiltins_registerAll(VMContext* ctx) {
     VM_registerBuiltin(ctx, "window_set_showborder", builtin_window_noop);
     VM_registerBuiltin(ctx, "gamepad_test_mapping", builtin_window_noop);
     VM_registerBuiltin(ctx, "gamepad_remove_mapping", builtin_window_noop);
-    VM_registerBuiltin(ctx, "gamepad_get_mapping", builtin_return_empty_string);
+    VM_registerBuiltin(ctx, "gamepad_get_mapping", builtin_gamepad_get_mapping);
     VM_registerBuiltin(ctx, "debug_event", builtin_window_noop);
     VM_registerBuiltin(ctx, "exception_unhandled_handler", builtin_window_noop);
     VM_registerBuiltin(ctx, "url_open", builtin_window_noop);

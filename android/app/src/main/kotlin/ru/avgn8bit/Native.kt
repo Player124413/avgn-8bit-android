@@ -45,6 +45,9 @@ object Native {
     external fun gamepadDisconnected(device: Int)
     external fun gamepadButton(device: Int, button: Int, isDown: Boolean)
     external fun gamepadAxis(device: Int, axis: Int, value: Float)
+
+    /** Which controller the touch pad imitates: 0 = PlayStation, 1 = Xbox. The game draws matching glyphs. */
+    external fun setGamepadScheme(scheme: Int)
     external fun stepAndDraw(winW: Int, winH: Int, deltaSeconds: Float): Int
     external fun getTargetFrameHz(): Int
     external fun stopRunner()

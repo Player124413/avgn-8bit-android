@@ -62,6 +62,7 @@ class GameRunner(
         data class PadAxis(val axis: Int, val value: Float) : Input
         data class PadConnected(val name: String) : Input
         data object PadDisconnected : Input
+        data class PadScheme(val scheme: Int) : Input
     }
 
     private val commands = LinkedBlockingQueue<Command>()
@@ -78,6 +79,8 @@ class GameRunner(
     private var quitting = false
     private var gameStarted = false
     private var prepared = false
+    // Read by the render thread when the runner starts; written from the UI thread.
+    @Volatile private var padScheme = 0
     private var logOpen = false
     private var fboId = 0
     private var frameTexture = 0
@@ -142,6 +145,15 @@ class GameRunner(
     fun padButton(button: Int, down: Boolean) = inputs.offer(Input.PadButton(button, down))
     fun padAxis(axis: Int, value: Float) = inputs.offer(Input.PadAxis(axis, value))
     fun padConnected(name: String = "Touch controls") = inputs.offer(Input.PadConnected(name))
+
+    /**
+     * 0 = PlayStation, 1 = Xbox: the runtime reports the touch pad under that identity, which is what the game reads
+     * to decide whether a controller is connected and which button glyphs to draw.
+     */
+    fun setGamepadScheme(scheme: Int) {
+        padScheme = if (scheme == 1) 1 else 0
+        inputs.offer(Input.PadScheme(padScheme))
+    }
     fun padDisconnected() = inputs.offer(Input.PadDisconnected)
 
     // ===[ Render thread ]===
@@ -244,8 +256,10 @@ class GameRunner(
             gameStarted = true
             hasStarted = true
             gameRunning = true
-            // The touch controls are a gamepad as far as the game is concerned.
-            Native.gamepadConnected(0, "Touch controls")
+            // The touch controls are a gamepad as far as the game is concerned. The runtime attaches device 0 itself
+            // before the game's first frame (see attachTouchPad in android/main.c); this only says which controller
+            // it should claim to be.
+            Native.setGamepadScheme(padScheme)
             lastFrameNs = System.nanoTime()
         }
 
@@ -290,6 +304,7 @@ class GameRunner(
                 is Input.PadButton -> Native.gamepadButton(0, input.button, input.down)
                 is Input.PadAxis -> Native.gamepadAxis(0, input.axis, input.value)
                 is Input.PadConnected -> Native.gamepadConnected(0, input.name)
+                is Input.PadScheme -> Native.setGamepadScheme(input.scheme)
                 Input.PadDisconnected -> Native.gamepadDisconnected(0)
             }
         }

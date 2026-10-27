@@ -38,6 +38,7 @@ typedef struct {
     int jid;
     char description[256];
     char guid[64];
+    char mapping[512];
     bool buttonDownPrev[GP_BUTTON_COUNT];
     bool buttonDown[GP_BUTTON_COUNT];
     bool buttonPressed[GP_BUTTON_COUNT];
@@ -68,6 +69,8 @@ float RunnerGamepad_buttonValue(RunnerGamepadState* gp, int device, int button);
 float RunnerGamepad_axisValue(RunnerGamepadState* gp, int device, int axis);
 const char* RunnerGamepad_getDescription(RunnerGamepadState* gp, int device);
 const char* RunnerGamepad_getGuid(RunnerGamepadState* gp, int device);
+const char* RunnerGamepad_getMapping(RunnerGamepadState* gp, int device);
+void RunnerGamepad_attachVirtual(RunnerGamepadState* gp, int device, const char* name, const char* guid, const char* mapping);
 float RunnerGamepad_getButtonThreshold(RunnerGamepadState* gp, int device);
 void RunnerGamepad_setButtonThreshold(RunnerGamepadState* gp, int device, float threshold);
 float RunnerGamepad_getAxisDeadzone(RunnerGamepadState* gp, int device);

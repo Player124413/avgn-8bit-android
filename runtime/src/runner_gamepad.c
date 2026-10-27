@@ -1,5 +1,6 @@
 #include "runner_gamepad.h"
 #include "utils.h"
+#include "input_trace.h"
 
 #include <stdlib.h>
 #include "string_compat.h"
@@ -88,11 +89,21 @@ void RunnerGamepad_beginFrame(RunnerGamepadState* gp) {
 }
 
 int RunnerGamepad_getDeviceCount(RunnerGamepadState* gp) {
-    return gp->connectedCount;
+    // Counted from the slots rather than taken from connectedCount: the counter is reset at the top of every frame by
+    // backends that poll it there, and a device that is connected but not counted this frame reads as absent to the
+    // game (it then draws its keyboard prompts and ignores the pads).
+    if (gp == NULL) return 0;
+    int count = 0;
+    for (int i = 0; MAX_GAMEPADS > i; i++) {
+        if (gp->slots[i].connected) count++;
+    }
+    BS_TRACE_INPUT("gamepad_get_device_count", count, 0, count);
+    return count;
 }
 
 bool RunnerGamepad_isConnected(RunnerGamepadState* gp, int device) {
-    if (device < 0 || device >= MAX_GAMEPADS) return false;
+    if (gp == NULL || device < 0 || device >= MAX_GAMEPADS) return false;
+    BS_TRACE_INPUT("gamepad_is_connected", device, 0, gp->slots[device].connected);
     return gp->slots[device].connected;
 }
 
@@ -101,6 +112,7 @@ bool RunnerGamepad_buttonCheck(RunnerGamepadState* gp, int device, int button) {
     if (!gp->slots[device].connected) return false;
     int idx = gmlButtonToIndex(button);
     if (idx < 0 || idx >= GP_BUTTON_COUNT) return false;
+    BS_TRACE_INPUT("gamepad_button_check", button, idx, gp->slots[device].buttonDown[idx]);
     return gp->slots[device].buttonDown[idx];
 }
 
@@ -109,6 +121,7 @@ bool RunnerGamepad_buttonCheckPressed(RunnerGamepadState* gp, int device, int bu
     if (!gp->slots[device].connected) return false;
     int idx = gmlButtonToIndex(button);
     if (idx < 0 || idx >= GP_BUTTON_COUNT) return false;
+    BS_TRACE_INPUT("gamepad_button_check_pressed", button, idx, gp->slots[device].buttonPressed[idx]);
     return gp->slots[device].buttonPressed[idx];
 }
 
@@ -117,6 +130,7 @@ bool RunnerGamepad_buttonCheckReleased(RunnerGamepadState* gp, int device, int b
     if (!gp->slots[device].connected) return false;
     int idx = gmlButtonToIndex(button);
     if (idx < 0 || idx >= GP_BUTTON_COUNT) return false;
+    BS_TRACE_INPUT("gamepad_button_check_released", button, idx, gp->slots[device].buttonReleased[idx]);
     return gp->slots[device].buttonReleased[idx];
 }
 
@@ -147,16 +161,46 @@ float RunnerGamepad_axisValue(RunnerGamepadState* gp, int device, int axis) {
 }
 
 const char* RunnerGamepad_getDescription(RunnerGamepadState* gp, int device) {
-    if (device < 0 || device >= MAX_GAMEPADS) return "";
+    if (gp == NULL || device < 0 || device >= MAX_GAMEPADS) return "";
     if (!gp->slots[device].connected) return "";
+    BS_TRACE_INPUT("gamepad_get_description", device, 0, 1);
     return gp->slots[device].description;
 }
 
 const char* RunnerGamepad_getGuid(RunnerGamepadState* gp, int device) {
-    if (device < 0 || device >= MAX_GAMEPADS) return "device index out of range";
+    if (gp == NULL || device < 0 || device >= MAX_GAMEPADS) return "device index out of range";
     if (!gp->slots[device].connected) return "none";
+    BS_TRACE_INPUT("gamepad_get_guid", device, 0, 1);
     const char* g = gp->slots[device].guid;
     return (g[0] != '\0') ? g : "none";
+}
+
+/**
+ * The SDL mapping of a connected device. Games ask for it to find out which physical button is "a" and which is
+ * "start"; the Android touch pad is laid out exactly like the DualShock in the mapping below, so that is what it
+ * reports. An empty answer (what a port that does not implement this returns) makes some games drop the device.
+ */
+const char* RunnerGamepad_getMapping(RunnerGamepadState* gp, int device) {
+    if (gp == NULL || device < 0 || device >= MAX_GAMEPADS) return "";
+    if (!gp->slots[device].connected) return "";
+    BS_TRACE_INPUT("gamepad_get_mapping", device, 0, 1);
+    return gp->slots[device].mapping;
+}
+
+/** Makes a device present without it having been polled: the touch pad is there from the first frame. */
+void RunnerGamepad_attachVirtual(RunnerGamepadState* gp, int device, const char* name, const char* guid, const char* mapping) {
+    if (gp == NULL || device < 0 || device >= MAX_GAMEPADS) return;
+    GamepadSlot* slot = &gp->slots[device];
+    slot->connected = true;
+    slot->connectedPrev = false;
+    snprintf(slot->description, sizeof(slot->description), "%s", name != NULL ? name : "Gamepad");
+    snprintf(slot->guid, sizeof(slot->guid), "%s", guid != NULL ? guid : "");
+    snprintf(slot->mapping, sizeof(slot->mapping), "%s", mapping != NULL ? mapping : "");
+    int count = 0;
+    for (int i = 0; MAX_GAMEPADS > i; i++) {
+        if (gp->slots[i].connected) count++;
+    }
+    gp->connectedCount = count;
 }
 
 float RunnerGamepad_getButtonThreshold(RunnerGamepadState* gp, int device) {

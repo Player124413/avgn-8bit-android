@@ -341,6 +341,47 @@ static char** extractRunnerArguments(char* rawArguments) {
 }
 
 // Builds the VM/runner/renderer/audio from a data.win on disk and fires the first room, leaving the result in gRunner
+// The touch controls present themselves as a real controller: the game asks for the device's name, its GUID and its
+// SDL mapping to decide that a pad is connected at all (and which glyphs to draw), and an empty answer makes it fall
+// back to keyboard prompts. Two identities are here because the player picks the scheme on the pause screen.
+typedef struct {
+    const char* name;
+    const char* guid;
+    const char* mapping;
+} AndroidPadIdentity;
+
+static const AndroidPadIdentity PAD_PLAYSTATION = {
+    .name = "Wireless Controller",
+    .guid = "030000004c050000cc09000000000000",
+    .mapping = "030000004c050000cc09000000000000,Wireless Controller,"
+               "a:b0,b:b1,back:b8,dpdown:b13,dpleft:b14,dpright:b15,dpup:b12,guide:b16,"
+               "leftshoulder:b4,leftstick:b10,lefttrigger:b6,leftx:a0,lefty:a1,"
+               "rightshoulder:b5,rightstick:b11,righttrigger:b7,rightx:a2,righty:a3,start:b9,x:b2,y:b3,platform:Android,"
+};
+
+static const AndroidPadIdentity PAD_XBOX = {
+    .name = "Xbox 360 Controller",
+    .guid = "030000005e0400008e02000000000000",
+    .mapping = "030000005e0400008e02000000000000,Xbox 360 Controller,"
+               "a:b0,b:b1,back:b6,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,dpup:h0.1,guide:b8,"
+               "leftshoulder:b4,leftstick:b9,lefttrigger:a2,leftx:a0,lefty:a1,"
+               "rightshoulder:b5,rightstick:b10,righttrigger:a5,rightx:a3,righty:a4,start:b7,x:b2,y:b3,platform:Android,"
+};
+
+static int gPadScheme = 0; // 0 = PlayStation, 1 = Xbox
+
+static const AndroidPadIdentity* currentPadIdentity(void) {
+    return gPadScheme == 1 ? &PAD_XBOX : &PAD_PLAYSTATION;
+}
+
+/** Device 0 is the touch pad; it is present from the first frame, before any finger has touched the screen. */
+static void attachTouchPad(Runner* runner) {
+    if (runner == nullptr || runner->gamepads == nullptr) return;
+    const AndroidPadIdentity* id = currentPadIdentity();
+    RunnerGamepad_attachVirtual(runner->gamepads, 0, id->name, id->guid, id->mapping);
+    logInfo("Touch pad: attached as '%s' (%s)\n", id->name, id->guid);
+}
+
 static bool startRunnerFromPath(const char* dataWinPath, const char* savesPath, char** gameArgs, jint jOsType) {
     requireNotNull(dataWinPath);
     requireNotNull(savesPath);
@@ -411,6 +452,9 @@ static bool startRunnerFromPath(const char* dataWinPath, const char* savesPath, 
 
     Runner* runner = Runner_create(dataWin, vm, renderer, (FileSystem*) overlayFs, audioSystem, 0);
     runner->osType = jOsType;
+    // Before Runner_initFirstRoom: the game builds its list of controllers in a Create event, and a pad that shows up
+    // after that is never noticed.
+    attachTouchPad(runner);
     runner->setWindowTitle = setWindowTitle;
     runner->windowHasFocus = nullptr;
     runner->getWindowSize = androidGetWindowSize;
@@ -661,6 +705,13 @@ JNIEXPORT void JNICALL JNI_FN(gamepadButton)(MAYBE_UNUSED JNIEnv* env, MAYBE_UNU
     androidGamepadEnsureConnected(slot, nullptr);
     bool isDown = (down == JNI_TRUE);
     bool wasDown = slot->buttonDown[button];
+    // Paired with the INPUT lines the game's own queries produce: one side shows what the fingers sent, the other what
+    // the game asked for, and a mismatch between the two explains "the buttons do nothing" exactly.
+    static int sentLog = 0;
+    if (sentLog < 60) {
+        sentLog++;
+        logInfo("TOUCH pad button %d %s (device %d)\n", (int) button, isDown ? "down" : "up", (int) device);
+    }
     // Edge detection mirrors the keyboard path: pressed/released are one-frame flags cleared by beginFrame, so we only raise them on an actual transition.
     if (isDown && !wasDown) slot->buttonPressed[button] = true;
     if (!isDown && wasDown) slot->buttonReleased[button] = true;
@@ -677,6 +728,11 @@ JNIEXPORT void JNICALL JNI_FN(gamepadAxis)(MAYBE_UNUSED JNIEnv* env, MAYBE_UNUSE
     if (value < -1.0f) value = -1.0f;
     if (value > 1.0f) value = 1.0f;
     slot->axisValue[axis] = value;
+}
+
+JNIEXPORT void JNICALL JNI_FN(setGamepadScheme)(MAYBE_UNUSED JNIEnv* env, MAYBE_UNUSED jclass cls, jint scheme) {
+    gPadScheme = (scheme == 1) ? 1 : 0;
+    attachTouchPad(gRunner);
 }
 
 #define BUTTERSCOTCH_DROID_CONTINUE 0
