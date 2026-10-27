@@ -1895,6 +1895,16 @@ static bool compileProgramImpl(GMLShader* gmlShader, const char* name, const cha
     GLuint shaderId = linkProgram(name, vertexAttributeCount, vertexAttributes, vertShaderT, fragShaderT, &success);
     glDeleteShader(vertShaderT);
     glDeleteShader(fragShaderT);
+#ifndef PLATFORM_VITA
+    // A program that did not link is not a program: drawing with it draws nothing at all, which is how a game shader
+    // can silently delete the sprites it is set for. Leave the shader uncompiled so the draw falls back to the plain
+    // program (see glGpuSetShader) and the log says which shader it was. The Vita keeps the old treatment: vitaGL only
+    // fills in the link result in some of its modes (see the CRT rewrites above).
+    if (!success) {
+        glDeleteProgram(shaderId);
+        return false;
+    }
+#endif
     //Texture Set Stage BS has to be done bruh :(
     int32_t samplerIndex = 0;
     GLint uniformCount;
@@ -3947,13 +3957,31 @@ bool GLRenderer_ensureTextureLoaded(GLRenderer* gl, uint32_t pageId) {
 }
 
 // Resolves a TPAG index to a loaded GL texture. Returns false if drawing should be skipped.
+// A sprite whose texture page is not there is skipped without a word, which looks exactly like "the game draws nothing
+// there" (an enemy that shoots but has no sprite). Say so, a few times, naming the sprite and the page.
+static int spriteSkipLogged = 0;
+static void logSpriteSkipped(int32_t tpagIndex, int32_t pageId, const char* why) {
+    if (spriteSkipLogged >= 12) return;
+    spriteSkipLogged++;
+    logWarn("GL: sprite %d is skipped: %s (page %d)\n", tpagIndex, why, pageId);
+}
+
 static bool resolveSpriteTexture(GLRenderer* gl, int32_t tpagIndex, TexturePageItem** outTpag, GLuint* outTexId, int32_t* outTexW, int32_t* outTexH) {
     DataWin* dw = gl->base.dataWin;
-    if (0 > tpagIndex || dw->tpag.count <= (uint32_t) tpagIndex) return false;
+    if (0 > tpagIndex || dw->tpag.count <= (uint32_t) tpagIndex) {
+        logSpriteSkipped(tpagIndex, -1, "there is no such sprite in data.win");
+        return false;
+    }
     TexturePageItem* tpag = &dw->tpag.items[tpagIndex];
     int16_t pageId = tpag->texturePageId;
-    if (0 > pageId || gl->textureCount <= (uint32_t) pageId) return false;
-    if (!GLRenderer_ensureTextureLoaded(gl, (uint32_t) pageId)) return false;
+    if (0 > pageId || gl->textureCount <= (uint32_t) pageId) {
+        logSpriteSkipped(tpagIndex, pageId, "its texture page is out of range");
+        return false;
+    }
+    if (!GLRenderer_ensureTextureLoaded(gl, (uint32_t) pageId)) {
+        logSpriteSkipped(tpagIndex, pageId, "its texture page did not load");
+        return false;
+    }
     *outTpag = tpag;
     *outTexId = gl->glTextures[pageId];
     *outTexW = gl->textureWidths[pageId];
